@@ -202,7 +202,7 @@ def ffmpeg_atempo_filter(speed):
     """
     if speed <= 0:
         raise ValueError(f"ffmpeg speed {speed} must be positive")
-    if speed == 1:
-        return ""
+    # if speed == 1:
+    #     return ""
 
     return f"-af atempo={speed}"

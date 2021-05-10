@@ -40,7 +40,7 @@ def process_one_video_in_computer(
     print("  Splitting audio into boring / interesting parts")
     video = VideoFileClip(input_video_path)
     interesting_parts = speedup_algorithm.get_interesting_parts(video)
-    np.save("interesting_parts.npy", interesting_parts)
+    # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_and_boring_parts_to_video(
         interesting_parts,
         settings,
@@ -151,11 +151,11 @@ def apply_calculated_interesting_and_boring_parts_to_video(
     )
 
     print(f"  writing audio with { {'speed': boring_speed}} to '{boring_audio_path}'")
-    ffmpeg(f"-i {input_video_path} -vn {ffmpeg_atempo_filter(boring_speed)}' {boring_audio_path}")
+    ffmpeg(f"-i {input_video_path} -vn {ffmpeg_atempo_filter(boring_speed)} {boring_audio_path}")
 
     print(f"  writing audio with { {'speed': inter_speed}} to '{interesting_audio_path}'")
     ffmpeg(
-        f"-i {input_video_path} -vn {ffmpeg_atempo_filter(inter_speed)}' {interesting_audio_path}"
+        f"-i {input_video_path} -vn {ffmpeg_atempo_filter(inter_speed)} {interesting_audio_path}"
     )
 
     timecodes = []

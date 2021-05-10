@@ -286,7 +286,7 @@ class Settings:
          [[start_of_piece0, end_of_piece0], [start_of_piece1, end_of_piece1], [start_of_piece2, end_of_piece2]]
         :return: new calculated interesting_parts_np_array and boring_parts_np_array in the same format
         """
-        min_q, max_q = self.get_min_quiet_time(),
+        min_q, max_q = self.get_min_quiet_time(), self.get_max_quiet_time()
         begin_sound_indexes, end_sound_indexes = (
             interesting_parts[:, 0],
             interesting_parts[:, 1],
