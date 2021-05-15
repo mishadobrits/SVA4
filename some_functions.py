@@ -10,78 +10,6 @@ import os
 import numpy as np
 
 
-class FFMPEGCaller:
-    """
-    Usage
-        ffmpeg = FFMPEGCaller()
-        # some code ...
-        ffmpeg(string_command)
-    is equivalent to
-       # some code
-       os.command("ffmpeg " + string_command)
-
-    Also there is some options you can set:
-        :print_command = False: bool
-             if this parameter is 'True' ffmpeg(command) prints command before calling.
-        :hide_output = False: bool
-             if this parameter is 'True' ffmpeg adds " -hide_banner -loglevel error"
-             to the end of command what hides usual ffmpeg output.
-        :overwrite_force True, False or None:
-            - if this parameter is 'True' ouput_file will be overwrited
-            - if this parameter is 'False' ouput_file will be overwrited
-            - if this parameter is 'None' command line asks you
-                'File '{output_file}' already exists. Overwrite?'
-            This feature works good only if there is only 1 output file.  #todo
-            If there is several output file this feture works for the last one
-
-    """
-
-    def __init__(self, print_command=False, hide_output=False, overwrite_force=None):
-        self.print_command = print_command
-        self.hide_output = hide_output
-        self.overwrite_force = overwrite_force
-
-    def set_print_command(self, value):
-        """sets print_command field"""
-        self.print_command = value
-
-    def get_print_command(self):
-        """returns print_command field"""
-        return self.print_command
-
-    def set_hide_output(self, value):
-        """sets hide_output field"""
-        self.hide_output = value
-
-    def get_hide_output(self):
-        """returns hide_output field"""
-        return self.hide_output
-
-    def set_overwrite_force(self, value):
-        """sets overwrite_force field"""
-        self.overwrite_force = value
-
-    def get_overwrite_force(self):
-        """returns overwrite_force field"""
-        return self.overwrite_force
-
-    def __call__(self, command):
-        if os.path.exists(list(command.split())[-1]):
-            if self.overwrite_force:
-                command = "-y " + command
-            elif type(self.overwrite_force) == bool:
-                command = "-n " + command
-            else:  # self.overwrite_force -is None
-                pass
-
-        command = "ffmpeg " + command
-        if self.hide_output:
-            command += " -hide_banner -loglevel error"
-        if self.print_command:
-            print(command)
-        return os.system(command)
-
-
 def get_subclip_soundarray(wavio_oblect, start, end):
     framerate = wavio_oblect.rate
     return wavio_oblect.data[int(start * framerate): int(end * framerate)]
@@ -94,12 +22,9 @@ def str2error_message(msg):
 
 def read_bytes_from_wave(waveread_obj, start_sec, end_sec):
     previous_pos, framerate = waveread_obj.tell(), waveread_obj.getframerate()
-    start_pos, end_pos = math.ceil(framerate * start_sec), math.ceil(
-        framerate * end_sec
-    )
-    start_pos, end_pos = min(waveread_obj.getnframes(), start_pos), min(
-        waveread_obj.getnframes(), end_pos
-    )
+
+    start_pos = min(waveread_obj.getnframes(), math.ceil(framerate * start_sec))
+    end_pos = min(waveread_obj.getnframes(), math.ceil(framerate * end_sec))
 
     waveread_obj.setpos(start_pos)
     rt_bytes = waveread_obj.readframes(end_pos - start_pos)
@@ -108,9 +33,27 @@ def read_bytes_from_wave(waveread_obj, start_sec, end_sec):
     return rt_bytes
 
 
-def v1timecodes_to_v2timecodes(
-        v1timecodes, video_fps, length_of_video, default_output_fps=10 ** 9
-):
+def input_answer(quetsion, answers_list, quit_options=["q", "Q"], attempts=10**10):
+    def list2str(option_list):
+        if not option_list:
+            return ""
+        if len(option_list) == 1:
+            return option_list[1]
+        return f"{', '.join(option_list[:-1])} or {option_list[-1]}"
+
+    addition = f" (options: {list2str(answers_list)}; {list2str(quit_options)} to quit)"
+    for i in range(attempts):
+        if i:
+            print(f"Cannot understand input '{answer}'. Available values is {addition}")
+        answer = input(quetsion + addition)
+        if answer in answers_list:
+            return answer
+        if answer in quit_options:
+            print("Quiting")
+            exit(0)
+
+
+def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_output_fps=9 ** 9):
     """
 
     :param v1timecodes: timecodes in v1format:
@@ -123,13 +66,11 @@ def v1timecodes_to_v2timecodes(
 
     default_freq = 1 / default_output_fps / video_fps
     time_between_neighbour_frames = default_freq * np.ones(length_of_video, dtype=np.float64)
-
     for elem in v1timecodes:
         start_t, end_t = elem[0] * video_fps, elem[1] * video_fps
         # todo begin kostil
-        start_t, end_t = min(start_t, length_of_video - 1), min(
-            end_t, length_of_video - 1
-        )
+        start_t = min(start_t, length_of_video - 1)
+        end_t = min(end_t, length_of_video - 1)
         # end kostil
 
         time_between_neighbour_frames[round(start_t): round(end_t)] = 1 / elem[2]

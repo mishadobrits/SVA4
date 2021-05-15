@@ -278,7 +278,7 @@ class Settings:
     def is_trivial(self):
         return not bool(self.to_dict())
 
-    def apply_settings_to_interestingpartsarray(self, interesting_parts):
+    def process_interestingpartsarray(self, interesting_parts):
         """
         Changes lenght
 
@@ -298,21 +298,17 @@ class Settings:
         begin_sound_indexes = begin_sound_indexes[np.hstack([True, is_changing])]
         end_sound_indexes = end_sound_indexes[np.hstack([is_changing, True])]
 
-        interesting_parts = np.vstack(
-            [begin_sound_indexes, end_sound_indexes]
-        ).transpose((1, 0))
-        boring_parts_beginings = np.hstack([0, end_sound_indexes[:-1]])
+        interesting_parts = np.vstack([begin_sound_indexes, end_sound_indexes])
+
+        boring_parts_beginnings = np.hstack([0, end_sound_indexes[:-1]])
         boring_parts_ends = np.minimum(
             begin_sound_indexes,
-            boring_parts_beginings + max_q - min_q,
+            boring_parts_beginnings + max_q - min_q,
         )
-
         boring_parts_ends[0] = np.minimum(
             begin_sound_indexes[0],
-            boring_parts_beginings[0] + self.get_max_quiet_time(),
+            boring_parts_beginnings[0] + self.get_max_quiet_time(),
         )
-        boring_parts = np.vstack([boring_parts_beginings, boring_parts_ends]).transpose(
-            (1, 0)
-        )
+        boring_parts = np.vstack([boring_parts_beginnings, boring_parts_ends])
 
-        return interesting_parts, boring_parts
+        return interesting_parts.transpose((1, 0)), boring_parts.transpose((1, 0))

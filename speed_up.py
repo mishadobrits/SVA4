@@ -26,7 +26,7 @@ class VolumeAlgorithm(SpeedUpAlgorithm):
     """
     Returns pieces where volume >= sound_threshold as interesting parts
     """
-    def __init__(self, sound_threshold, chunk=5 * 60):
+    def __init__(self, sound_threshold, chunk=60):
         self.chunk = chunk
         self.sound_threshold = sound_threshold
 
