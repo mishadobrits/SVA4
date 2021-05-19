@@ -13,12 +13,22 @@ For this purpose, you can use, for example, FFmpeg. Just run in cmd following co
 (You don't need to decode audio, because it's in normal format).<br>
 Also, if `is_result_cfr = True` is setted, main functions runs this command on their own.
 
+And further, when this program starts it creates temporary diretories, and
+if user interrupts the code program don't delete it, because of it interrupted.
+So, there is a function `main.delete_all_sva4_temporary_objects` deletes all directories and files
+that hadn't be deleted. (It is possible, because all temporary directories created by this project
+marked with prefix `"SVA_4"` in the start of its name)
+
 # Instalation
 1. Download the FFmpeg from the official website https://ffmpeg.org/download.html.
 2. Make FFmpeg seen from the command line.
 3. Download the mkvmerge from the official website https://mkvtoolnix.download/.
 4. Make mkvmerge seen from the command line.
 5. Download or clone this code from Github.<br>
+   
+Modules `webrtcvad`, `torch` and `torchaudio` are used only for their algorithms,
+so they if you don't use the appropriate algorithm, these modules are unnecessary.<br>
+
 
 Now you are ready to start work with it.
 
@@ -28,13 +38,19 @@ If you want to process video using a built-in project algorithm.<br>
    For example, you saved it in
    `input_video_path = input("write path of input video: ")`
 2. The second step is to choose an algorithm that returns a list of interesting parts.
-   At this moment, there is only two of them.
-     * `speed_up.VolumeAlgorithm(sound_threshold)` accepts float `sound_threshold` and
+   At this moment, these algorithms are available.
+     * `speed_up.VolumeThresholdAlgorithm(sound_threshold)` accepts float `sound_threshold` and
        returns all pieces where volume >= sound_threshold as interesting parts<br>
-       For example, `speedup_algorithm = VolumeAlgorithm(0.03)`
+       For example, `speedup_algorithm = VolumeThresholdAlgorithm(0.03)`
      * `speed_up.WebRtcVADAlgorithm(aggressiveness=1)` accepts `aggressiveness=0, 1, 2 or 3`
-       selects speech from video using voice activity detection algorithm coded by google and returns them as interesting parts<br>
-     For example, `speedup_algorithm = WebRtcVADAlgorithm(2)`
+       selects speech from video using Voice Activity Detection (VAD) algorithm coded by google
+       (link https://github.com/wiseman/py-webrtcvad) and returns them as interesting parts.<br>
+       For example, `speedup_algorithm = WebRtcVADAlgorithm(2)`.<br>
+       This algorithm requires `webrtcvad` module installed.<br>
+     * `speed_up.SileroVadAlgorithm(vad_args=[], vad_kwargs={])` selects speech from text using VAD algorithm
+       from this (https://github.com/snakers4/silero-vad) project and returns them as interesting parts.<br>
+       `SileroVadAlgorithm` requires installed `torch` and `torchaudio` modules.
+       
 3. Thirdly, you should set some params.
    The program uses the `settings.Settings`  object to contain them. This class only contains all parameters that the program needs.
    Description of supported parameters here<br>
@@ -88,12 +104,16 @@ Testing process_one_video_in_computer function
 from main import process_one_video_in_computer
 from settings import Settings
 from ffmpeg_caller import FFMPEGCaller
-from speed_up import VolumeAlgorithm, WebRtcVADAlgorithm
+from speed_up import VolumeThresholdAlgorithm, WebRtcVADAlgorithm, SileroVadAlgorithm
 
 input_video_path = input("write path of input video: ")
-# speedup_algorithm = VolumeAlgorithm(0.0275)
-speedup_algorithm = WebRtcVADAlgorithm(3)
+
+# speedup_algorithm = VolumeThresholdAlgorithm(0.0275) or
+# speedup_algorithm = WebRtcVADAlgorithm(3) or
+speedup_algorithm = SileroVadAlgorithm()
+
 settings = Settings(min_quiet_time=0.2, quiet_speed=6)
+
 output_video_path = input("write path of output mkv video path: ")
 
 process_one_video_in_computer(

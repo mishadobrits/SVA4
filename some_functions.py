@@ -6,13 +6,11 @@ I moved them to a separate file because all modules use these functions,
 
 import itertools
 import math
-import os
+from wave import Wave_read
 import numpy as np
 
 
-def get_subclip_soundarray(wavio_oblect, start, end):
-    framerate = wavio_oblect.rate
-    return wavio_oblect.data[int(start * framerate): int(end * framerate)]
+TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
 
 
 def str2error_message(msg):
@@ -20,7 +18,15 @@ def str2error_message(msg):
     return " ".join(list(msg.replace("\n", " ").split()))
 
 
-def read_bytes_from_wave(waveread_obj, start_sec, end_sec):
+def read_bytes_from_wave(waveread_obj: Wave_read, start_sec: float, end_sec: float):
+    """
+    Reades bytes from wav file 'waveread_obj' from start_sec up to end_sec.
+
+    :param waveread_obj: Wave_read
+    :param start_sec: float
+    :param end_sec: float
+    :return: rt_bytes: bytes: read bytes
+    """
     previous_pos, framerate = waveread_obj.tell(), waveread_obj.getframerate()
 
     start_pos = min(waveread_obj.getnframes(), math.ceil(framerate * start_sec))
@@ -33,7 +39,16 @@ def read_bytes_from_wave(waveread_obj, start_sec, end_sec):
     return rt_bytes
 
 
-def input_answer(quetsion, answers_list, quit_options=["q", "Q"], attempts=10**10):
+def input_answer(quetsion: str, answers_list: list, attempts: int = 10**10):
+    """
+    Prints quetsion until user enters answers_list. (answers_list is also printed)
+
+    :param quetsion: str: Question that will be displayed.
+    :param answers_list: List of available answers.
+    :param attempts: Number of attempts that user has.
+    :return: if somewhen user wrote an answer from answers_list function immediately returns it.
+             else None returned.
+    """
     def list2str(option_list):
         if not option_list:
             return ""
@@ -41,16 +56,14 @@ def input_answer(quetsion, answers_list, quit_options=["q", "Q"], attempts=10**1
             return option_list[1]
         return f"{', '.join(option_list[:-1])} or {option_list[-1]}"
 
-    addition = f" (options: {list2str(answers_list)}; {list2str(quit_options)} to quit)"
+    addition = f" ({list2str(answers_list)}"
     for i in range(attempts):
         if i:
-            print(f"Cannot understand input '{answer}'. Available values is {addition}")
+            msg = "Cannot understand input '{}'. Available values is {}"
+            print(msg.format(answer, list2str(answers_list)))
         answer = input(quetsion + addition)
         if answer in answers_list:
             return answer
-        if answer in quit_options:
-            print("Quiting")
-            exit(0)
 
 
 def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_output_fps=9 ** 9):
@@ -74,13 +87,12 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
         # end kostil
 
         time_between_neighbour_frames[round(start_t): round(end_t)] = 1 / elem[2]
-
         """
         tc[math.floor(start_t)] += (1 - start_t % 1) * (1 / elem[2] - default_freq)
         tc[math.floor(end_t)] += (end_t % 1) * (1 / elem[2] - default_freq)
         tc[math.floor(start_t) + 1: math.floor(end_t)] = 1 / elem[2]
         """
-    timecodes = cumsum(time_between_neighbour_frames)  # np.nancumsum(tc)
+    timecodes = cumsum(time_between_neighbour_frames)
     # with open('v1timecodes.npy', 'wb') as f:
     #     np.save(f, v1timecodes)
     # print(f"rt[-1] = {rt[-1]}")
@@ -95,7 +107,6 @@ def save_v2_timecodes_to_file(filepath, timecodes):
     :return: file object (closed)
     """
     str_timecodes = [format(elem * 1000, "f") for elem in timecodes]
-    # print(f"filepath = '{filepath}'")
     with open(filepath, "w") as file:
         file.write("# timestamp format v2\n")
         file.write("\n".join(str_timecodes))
@@ -118,7 +129,6 @@ def save_v1_timecodes_to_file(filepath, timecodes, videos_fps, default_fps=10 **
         for elem in timecodes:
             elem = [int(elem[0] * videos_fps), int(elem[1] * videos_fps), elem[2]]
             elem = [str(n) for n in elem]
-            # print(elem, ",".join(elem))
             file.write(",".join(elem) + "\n")
     return file
 

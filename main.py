@@ -9,27 +9,27 @@ from pathlib import Path
 from tempfile import mkdtemp, gettempdir
 import wave
 import numpy as np
+from moviepy.editor import VideoFileClip
+from settings import Settings
 from some_functions import (
     v1timecodes_to_v2timecodes,
     save_v2_timecodes_to_file,
     read_bytes_from_wave,
-    ffmpeg_atempo_filter, input_answer,
+    ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX,
 )
 from ffmpeg_caller import FFMPEGCaller
-from moviepy.editor import VideoFileClip
+from speed_up import SpeedUpAlgorithm
 
-
-TEMPORY_DIRECTORY_PREFIX = "SVA4_"
-AUDIO_CHUNK_IN_SECONDS = 300  #
+AUDIO_CHUNK_IN_SECONDS = 60
 
 
 def process_one_video_in_computer(
-    input_video_path,
-    speedup_algorithm,
-    settings,
-    output_video_path,
-    is_result_cfr=False,
-    ffmpeg_caller=FFMPEGCaller(),
+    input_video_path: str,
+    speedup_algorithm: SpeedUpAlgorithm,
+    settings: Settings,
+    output_video_path: str,
+    is_result_cfr: bool = False,
+    ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
 ):
     """
     This function processes video (
@@ -41,7 +41,7 @@ def process_one_video_in_computer(
     print("  Splitting audio into boring / interesting parts")
     video = VideoFileClip(input_video_path)
     interesting_parts = speedup_algorithm.get_interesting_parts(video)
-    np.save("interesting_parts.npy", interesting_parts)
+    # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_and_boring_parts_to_video(
         interesting_parts,
         settings,
@@ -55,13 +55,13 @@ def process_one_video_in_computer(
 
 
 def apply_calculated_interesting_and_boring_parts_to_video(
-    interesting_parts,
-    settings,
-    input_video_path,
-    output_video_path,
-    working_directory_path=None,
-    is_result_cfr=False,
-    ffmpeg_caller=FFMPEGCaller(),
+    interesting_parts: np.array,
+    settings: Settings,
+    input_video_path: str,
+    output_video_path: str,
+    working_directory_path: str = None,
+    is_result_cfr: bool = False,
+    ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
 ):
     """
     This function does what readme said
@@ -72,7 +72,7 @@ def apply_calculated_interesting_and_boring_parts_to_video(
         3) Merges result video and result audio to 'output_video_path'.
     )
 
-    :param interesting_parts: interesting_parts array in format
+    :param interesting_parts: interesting_parts np array in format
         [[start_of_piece0, end_of_piece0], [start_of_piece1, end_of_piece1], ...
              [start_of_piece2, end_of_piece2]].
         All values should be positions in video in seconds.
@@ -104,9 +104,9 @@ def apply_calculated_interesting_and_boring_parts_to_video(
     ffmpeg = ffmpeg_caller
     overwrite_output_force = ffmpeg_caller.get_overwrite_force()
     if os.path.exists(output_video_path) and overwrite_output_force is None:
-        s = f"Output file is already exists and ffmpeg_caller.overwrite_force is None."
-        s += " Overwrite it?"
-        answer = input_answer(s, ["y", "Y", "n", "N"])
+        msg = "Output file is already exists and ffmpeg_caller.overwrite_force is None."
+        msg += " Overwrite it?"
+        answer = input_answer(msg, ["y", "Y", "n", "N"])
         overwrite_output_force = answer.lower() == "y"
     if os.path.exists(output_video_path) and not overwrite_output_force:
         print(f"File {output_video_path} is already exists and overwrite_output_force = False")
@@ -114,11 +114,15 @@ def apply_calculated_interesting_and_boring_parts_to_video(
         return
 
     def tpath(filename):
+        """
+        returns the absolute path for a file with name filename in folder working_directory_path
+        """
         return os.path.join(working_directory_path, filename)
 
-    need_to_remove_working_directory_tree = working_directory_path is None
+    need_to_remove_working_directory_tree = False
     if working_directory_path is None:
-        working_directory_path = mkdtemp(prefix=TEMPORY_DIRECTORY_PREFIX)
+        working_directory_path = mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX)
+        need_to_remove_working_directory_tree = True
         print(f"Temp floder: {working_directory_path}")
 
     video = VideoFileClip(input_video_path)
@@ -154,11 +158,11 @@ def apply_calculated_interesting_and_boring_parts_to_video(
     timecodes = []
     with wave.open(boring_audio_path) as boring_audio,\
             wave.open(interesting_audio_path) as interesting_audio,\
-            wave.open(temp_final_audio_path, "w") as temp_audio:
+            wave.open(temp_final_audio_path, "wb") as temp_audio:
         temp_audio.setparams(boring_audio.getparams())
         parts_iterator = itertools.zip_longest(boring_parts, interesting_parts)
 
-        debug_sum = 0
+        # debug_sum = 0
         for boring_and_interesting_part in parts_iterator:
             parts_with_file = zip([boring_audio, interesting_audio], boring_and_interesting_part)
             for file, part in parts_with_file:
@@ -166,12 +170,11 @@ def apply_calculated_interesting_and_boring_parts_to_video(
                     continue
                 timecodes.append([part[0], part[1], part[2] * video.fps])
                 part[0], part[1] = part[0] / part[2], part[1] / part[2]
-                debug_sum += (part[1] - part[0]) / part[2]
+                # debug_sum += (part[1] - part[0]) / part[2]
                 # print(part, debug_sum)
 
                 for start in np.arange(part[0], part[1], AUDIO_CHUNK_IN_SECONDS):
                     end = min(part[1], start + AUDIO_CHUNK_IN_SECONDS)
-                    # print(start, end)
                     temp_audio.writeframes(read_bytes_from_wave(file, start, end))
 
     ffmpeg(f"-i {temp_final_audio_path} {final_audio_path}")
@@ -205,25 +208,27 @@ def apply_calculated_interesting_and_boring_parts_to_video(
     if need_to_remove_working_directory_tree:
         video.reader.close()  # https://stackoverflow.com/a/45393619
         video.audio.reader.close_proc()
-        # if function delete direcotry before video, video deletion raises an error.
+        # If function deletes directory before deleting a video, video deletion raises an error.
         print(f"Removing {working_directory_path} tree", end="... ")
         shutil.rmtree(working_directory_path)
         print("done.")
 
 
-def delete_all_tempories_sva4_directories():
+def delete_all_sva4_temporary_objects():
     """
     When process_one_video_in_computer or apply_calculated_interesting_and_boring_parts_to_video
-    creates temporary directory its name starts with TEMPORY_DIRECTORY_PREFIX="SVA_4"
-    for easy identification. If user terminates process function doesn't delete directory,
-    cause of it terminated. So, function delete_all_tempories_sva4_directories deletes
-    all directories which marked with TEMPORY_DIRECTORY_PREFIX
+    creates temporary directory or temporary file its name starts with
+    TEMPORARY_DIRECTORY_PREFIX="SVA_4" for easy identification.
+    If user terminates process function doesn't delete directory, cause of it terminated.
+    So, function delete_all_tempories_sva4_directories deletes all directories and files which
+    marked with TEMPORARY_DIRECTORY_PREFIX
     :return: None
     """
-    temp_dirs = [f.path for f in os.scandir(gettempdir()) if f.is_dir()]
-    for temp_dir in filter(lambda fold: fold.startswith(TEMPORY_DIRECTORY_PREFIX), temp_dirs):
-        temp_dir_full_path = os.path.join(gettempdir(), temp_dir)
+    temp_dirs = [f for f in os.scandir(gettempdir()) if f.is_dir() or f.is_file()]
+    for temp_dir in filter(lambda fold: fold.name.startswith(TEMPORARY_DIRECTORY_PREFIX), temp_dirs):
+        temp_dir_full_path = os.path.join(gettempdir(), temp_dir.path)
         print(f"Deleting {temp_dir_full_path}")
-        shutil.rmtree(temp_dir_full_path)
-
-
+        if temp_dir.is_dir():
+            shutil.rmtree(temp_dir_full_path)
+        elif temp_dir.is_file():
+            os.remove(temp_dir_full_path)
