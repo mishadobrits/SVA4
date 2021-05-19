@@ -5,12 +5,16 @@ Testing process_one_video_in_computer function
 from main import process_one_video_in_computer
 from settings import Settings
 from ffmpeg_caller import FFMPEGCaller
-from speed_up import VolumeAlgorithm, WebRtcVADAlgorithm
+from speed_up import VolumeThresholdAlgorithm, WebRtcVADAlgorithm, SileroVadAlgorithm
 
 input_video_path = input("write path of input video: ")
-# speedup_algorithm = VolumeAlgorithm(0.0275)
-speedup_algorithm = WebRtcVADAlgorithm(3)
+
+# speedup_algorithm = VolumeThresholdAlgorithm(0.0275) or
+# speedup_algorithm = WebRtcVADAlgorithm(3) or
+speedup_algorithm = SileroVadAlgorithm()
+
 settings = Settings(min_quiet_time=0.2, quiet_speed=6)
+
 output_video_path = input("write path of output mkv video path: ")
 
 process_one_video_in_computer(

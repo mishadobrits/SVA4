@@ -31,7 +31,10 @@ class FFMPEGCaller:
 
     """
 
-    def __init__(self, overwrite_force=None, print_command=False, hide_output=False):
+    def __init__(self,
+                 overwrite_force=None,
+                 print_command: bool = False,
+                 hide_output: bool = False):
         self.print_command = print_command
         self.hide_output = hide_output
         self.overwrite_force = overwrite_force
@@ -44,7 +47,7 @@ class FFMPEGCaller:
         """returns print_command field"""
         return self.print_command
 
-    def set_hide_output(self, value):
+    def set_hide_output(self, value: bool):
         """sets hide_output field"""
         self.hide_output = value
 
@@ -52,7 +55,7 @@ class FFMPEGCaller:
         """returns hide_output field"""
         return self.hide_output
 
-    def set_overwrite_force(self, value):
+    def set_overwrite_force(self, value: bool):
         """sets overwrite_force field"""
         self.overwrite_force = value
 

@@ -169,78 +169,6 @@ class Settings:
     def get_max_quiet_time(self):
         return self.max_quiet_time
 
-    @check_type_decorators_generator()
-    def set_volume_coefficient(self, value):
-        self.volume_coefficient = abs(value)
-
-    def get_volume_coefficient(self):
-        return self.volume_coefficient
-
-    @check_type_decorators_generator()
-    def set_quiet_volume_coefficient(self, value):
-        self.quiet_volume_coefficient = abs(value)
-
-    def get_quiet_volume_coefficient(self):
-        return self.quiet_volume_coefficient
-
-    @check_type_decorators_generator()
-    def set_loud_volume_coefficient(self, value):
-        self.loud_volume_coefficient = abs(value)
-
-    def get_loud_volume_coefficient(self):
-        return self.loud_volume_coefficient
-
-    @check_type_decorators_generator()
-    def set_max_volume(self, value):
-        self.max_volume = abs(value)
-
-    def get_max_volume(self):
-        return self.max_volume
-
-    @check_type_decorators_generator()
-    def set_decrease(self, value):
-        self.decrease = abs(value)
-
-    def get_decrease(self):
-        return self.decrease
-
-    def get_brightness(self):
-        return self.brightness
-
-    @check_type_decorators_generator()
-    def set_brightness(self, value):
-        self.brightness = abs(value)
-
-    def get_contras_ratio(self):
-        return self.contras_ratio
-
-    @check_type_decorators_generator()
-    def set_contras_ratio(self, value):
-        if value <= 0:
-            return
-        self.contras_ratio = value
-
-    @check_type_decorators_generator(int)
-    def set_rotate_image(self, value):
-        self.rotate_image = value % 4
-
-    def get_rotate_image(self):
-        return self.rotate_image
-
-    def get_sound_threshold(self):
-        return self.sound_threshold
-
-    @check_type_decorators_generator(float)
-    def set_sound_threshold(self, value):
-        self.sound_threshold = value
-
-    @check_type_decorators_generator(bool)
-    def set_inverted(self, value):
-        self.inverted = value
-
-    def get_inverted(self):
-        return self.inverted
-
     def full_dict(self):
         """convert self to dict
         for inverse operation use smth = Settings(**dictionary)"""
@@ -280,17 +208,18 @@ class Settings:
 
     def process_interestingpartsarray(self, interesting_parts):
         """
-        Changes lenght
+        Calculates output interesting_parts_np_array and boring_parts_np_array
+        by inpyt interesting_parts_np_array using parameters saved in settings object.
 
         :param interesting_parts: interesting parts at usual format
-         [[start_of_piece0, end_of_piece0], [start_of_piece1, end_of_piece1], [start_of_piece2, end_of_piece2]]
-        :return: new calculated interesting_parts_np_array and boring_parts_np_array in the same format
+               [[start_of_piece0, end_of_piece0], [start_of_piece1, end_of_piece1],
+                [start_of_piece2, end_of_piece2]]
+        :return: new calculated interesting_parts_np_array and boring_parts_np_array
+                 in the same format
         """
         min_q, max_q = self.get_min_quiet_time(), self.get_max_quiet_time()
-        begin_sound_indexes, end_sound_indexes = (
-            interesting_parts[:, 0],
-            interesting_parts[:, 1],
-        )
+        begin_sound_indexes = interesting_parts[:, 0]
+        end_sound_indexes = interesting_parts[:, 1]
 
         end_sound_indexes[:-1] += min_q
 
