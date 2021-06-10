@@ -6,10 +6,12 @@ I moved them to a separate file because all modules use these functions,
 
 import itertools
 import math
+import os
 from wave import Wave_read
+from tempfile import gettempdir
 import numpy as np
 import wavio
-
+from ffmpeg_caller import FFMPEGCaller
 
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
 
@@ -20,9 +22,10 @@ class WavSubclip:
         self.start = start
         with Wave_read(path) as wav_file:
             self.sample_width = wav_file.getsampwidth()
-            self.nchannels= wav_file.getnchannels()
+            self.nchannels = wav_file.getnchannels()
             self.fps = wav_file.getframerate()
-            self.end = min(end, wav_file.getnframes() / self.fps)
+            self.duration = wav_file.getnframes() / self.fps
+            self.end = min(end, self.duration)
 
     def subclip(self, start, end):
         return WavSubclip(self.path, self.start + start, self.start + end)
@@ -39,6 +42,9 @@ class WavSubclip:
         # print("array", array,)
         return 2 * array - 1  # fit to [-1, 1] range
 
+    def read_part(self, start, end):
+        return self.subclip(start, end).to_soundarray()
+
 
 def save_audio_to_wav(input_video_path):
     """
@@ -47,6 +53,13 @@ def save_audio_to_wav(input_video_path):
     :return: path od audio
 
     """
+    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True)
+
+    input_video_path = os.path.abspath(input_video_path)
+    filename = os.path.join(gettempdir(), str(hash(input_video_path)) + ".wav")
+
+    ffmpeg(f" -i {input_video_path} {filename}")
+    return filename
 
 
 def str2error_message(msg):

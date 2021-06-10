@@ -42,8 +42,7 @@ def process_one_video_in_computer(
     """
 
     print("  Splitting audio into boring / interesting parts")
-    video = VideoFileClip(input_video_path)
-    interesting_parts = speedup_algorithm.get_interesting_parts(video)
+    interesting_parts = speedup_algorithm.get_interesting_parts(input_video_path)
     # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_to_video(
         interesting_parts,
@@ -54,8 +53,6 @@ def process_one_video_in_computer(
         ffmpeg_caller=ffmpeg_caller,
         is_result_cfr=is_result_cfr
     )
-    video.reader.close()
-    video.audio.reader.close_proc()
 
 
 def apply_calculated_interesting_to_video(
@@ -103,6 +100,7 @@ def apply_calculated_interesting_to_video(
         if this option is 'True'
     :return: None
     """
+    delete_all_sva4_temporary_objects()
     logger = logger or logging.getLogger('dummy')  # https://stackoverflow.com/a/13525899
     if Path(output_video_path).suffix != ".mkv":
         output_video_path += ".mkv"

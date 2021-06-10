@@ -11,12 +11,14 @@ Currently, there are
 
 
 """
+import math
 import os
 from math import ceil
 from tempfile import NamedTemporaryFile
 import numpy as np
+from moviepy.audio.AudioClip import AudioArrayClip
 from moviepy.editor import VideoClip
-from some_functions import str2error_message, TEMPORARY_DIRECTORY_PREFIX
+from some_functions import str2error_message, TEMPORARY_DIRECTORY_PREFIX, save_audio_to_wav, WavSubclip
 
 
 def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting_parts):
@@ -40,7 +42,7 @@ class SpeedUpAlgorithm:
     def __init__(self):
         pass
 
-    def get_interesting_parts(self, moviepy_video: VideoClip):
+    def get_interesting_parts(self, video_path: str):
         """
         All classes inherited from SpeedUpAlgorithm must overload get_interesting_parts method,
         because this method used by main.apply_calculated_interesting_to_video and
@@ -57,73 +59,49 @@ class SpeedUpAlgorithm:
         return f"{type(self).__name__}"
 
 
-class PiecemealBaseAlgorithm(SpeedUpAlgorithm):
-    """
-    If class inherited from PiecemealBaseAlgorithm, it must have get_interesting_parts_from_chunk
-    method.
-    When apply_calculated_interesting_to_video or process_one_video_in_computer
-    calls 'get_interesting_parts(video)' method, 'get_interesting_parts' divides video into
-    chunks with duration a 'chunk_in_seconds', applies a 'get_interesting_parts_from_chunk'
-    to each of them, and concatenates the result.
-
-    Public functions:
-        __init__ (chunk_in_seconds):
-        get_interesting_parts (moviepy_video):
-    """
-    def __init__(self, chunk_in_seconds: float = 60):
-        super(PiecemealBaseAlgorithm, self).__init__()
-        self.chunk = chunk_in_seconds
-
-    def get_interesting_parts(self, moviepy_video: VideoClip):
-        video_chunks = [
-            moviepy_video.subclip(i * self.chunk, min((i + 1) * self.chunk, moviepy_video.duration))
-            for i in range(ceil(moviepy_video.duration / self.chunk))
-        ]
-        loud_parts = []
-        print(f"from {len(video_chunks)}:", end=" ")
-        for i, audio_chunk in enumerate(video_chunks):
-            print(i, end=", ")
-            prefix_duration = i * self.chunk
-            chunk_interesting_parts = np.array(self.get_interesting_parts_from_chunk(audio_chunk))
-            loud_parts.append(prefix_duration + chunk_interesting_parts)
-        # print(loud_parts)
-        return np.vstack(loud_parts)
-
-    def get_interesting_parts_from_chunk(self, video_chunk: VideoClip):
-        msg = "All class inherited from {} must overload {} method. Class {} doesn't."
-        msg = msg.format(__class__, "get_interesting_parts_from_chunk", type(self))
-        raise AttributeError(msg)
-
-
-class PiecemealSoundAlgorithm(PiecemealBaseAlgorithm):
+class WavSoundAlgorithm(SpeedUpAlgorithm):
     """
     The same as PiecemealBaseAlgorithm but for algorithms, that uses only sound.
     """
-    def get_interesting_parts(self, moviepy_video: VideoClip):
-        class FakeVideo:
-            """
-            class contains only info about AudioClip, for faster working
-            """
-            def __init__(self, moviepy_video=None):
-                self.audio = None
-                self.duration = 0
-                if moviepy_video:
-                    self.set_audio(moviepy_video.audio)
+    def get_interesting_parts(self, video_path: str):
+        wav_audio_path = save_audio_to_wav(video_path)
+        wav_audio = WavSubclip(wav_audio_path)
+        return self.get_interesting_parts_from_wav(wav_audio)
 
-            def set_audio(self, audio):
-                self.audio = audio
-                self.duration = audio.duration
-
-            def subclip(self, start, end):
-                fake_video = FakeVideo()
-                fake_video.set_audio(self.audio.subclip(start, end))
-                return fake_video
-
-        fake_video = FakeVideo(moviepy_video)
-        return super(PiecemealSoundAlgorithm, self).get_interesting_parts(fake_video)
+    def get_interesting_parts_from_wav(self, wav_audio: WavSubclip):
+        msg = f"All classes inherited from {__class__} must overload" + \
+              " get_interesting_parts_from_wav method"
+        raise AttributeError(msg)
 
 
-class VolumeThresholdAlgorithm(PiecemealSoundAlgorithm):
+class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
+    """
+    The same as PiecemealBaseAlgorithm but for algorithms, that uses only sound.
+    """
+    def __init__(self, chunk_in_seconds: float = 60):
+        self.chunk = chunk_in_seconds
+        super(PiecemealWavSoundAlgorithm, self).__init__()
+
+    def get_interesting_parts_from_wav(self, wav_audio):
+        interesting_parts = []
+        print(f"from {math.ceil(wav_audio.duration / self.chunk)}: ", end="")
+        for start in np.arange(0, wav_audio.duration, self.chunk):
+            print(round(start / self.chunk), end=", ")
+            end = min(start + self.chunk, wav_audio.duration)
+            wav_part = wav_audio.subclip(start, end)
+
+            chunk_interesting_parts = np.array(self.get_interesting_parts_from_wav_part(wav_part))
+            interesting_parts.append(start + chunk_interesting_parts)
+
+        return np.vstack(interesting_parts)
+
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+        msg = f"All classes inherited from {__class__} must overload" + \
+              " get_interesting_parts_from_wav method"
+        raise AttributeError(msg)
+
+
+class VolumeThresholdAlgorithm(PiecemealWavSoundAlgorithm):
     """
     Returns pieces where volume >= sound_threshold as interesting parts
 
@@ -146,10 +124,8 @@ class VolumeThresholdAlgorithm(PiecemealSoundAlgorithm):
         """:returns sound_threshold: float"""
         return self.sound_threshold
 
-    def get_interesting_parts_from_chunk(self, video_chunk: VideoClip):
-        audio_chunk = video_chunk.audio
-
-        sound = np.abs(audio_chunk.to_soundarray())
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+        sound = np.abs(wav_audio_chunk.to_soundarray())
         sound = sound.max(axis=1).reshape(-1)
         sound = np.hstack([-1, sound, self.sound_threshold + 1, -1])
 
@@ -159,7 +135,7 @@ class VolumeThresholdAlgorithm(PiecemealSoundAlgorithm):
         end_sound_indexes = np.arange(len(borders))[borders < 0]
 
         interesting_parts = np.vstack([begin_sound_indexes, end_sound_indexes])
-        interesting_parts = interesting_parts.transpose((1, 0)) / audio_chunk.fps
+        interesting_parts = interesting_parts.transpose((1, 0)) / wav_audio_chunk.fps
         return _apply_min_quiet_time_to_interesting_parts_array(self.min_q_time, interesting_parts)
 
     def __str__(self):
@@ -174,7 +150,7 @@ class EnergyThresholdAlgorithm(PiecemealSoundAlgorithm):
 """
 
 
-class WebRtcVADAlgorithm(PiecemealSoundAlgorithm):
+class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
     """
     This algorithm selects speech from video using Voice Activity Detection (VAD)
     algorithm coded by google (link https://github.com/wiseman/py-webrtcvad)
@@ -183,7 +159,14 @@ class WebRtcVADAlgorithm(PiecemealSoundAlgorithm):
     def __init__(self,
                  aggressiveness: int = 1,
                  min_quiet_time: float = 0.25,
-                 chunk_in_seconds: float = 60):
+                 frame_duration: int = 30):
+        """
+
+        :param aggressiveness: parameter to VAD
+        :param min_quiet_time: as usual
+        :param frame_duration: must be 10, 20 or 30 - VAD parameter
+        :param chunk_in_seconds:
+        """
         try:
             import webrtcvad
         except ImportError as import_error:
@@ -191,34 +174,34 @@ class WebRtcVADAlgorithm(PiecemealSoundAlgorithm):
             raise err from import_error
 
         self.aggressiveness = None
+        self.sample_rate = 48000
+        self.frame_duration = frame_duration  # ms
+
         self.min_quiet_time = min_quiet_time
         self.set_aggressiveness(aggressiveness)
 
-        super(WebRtcVADAlgorithm, self).__init__(chunk_in_seconds=chunk_in_seconds)
+        super(WebRtcVADAlgorithm, self).__init__(chunk_in_seconds=60)
 
-    def get_interesting_parts_from_chunk(self, video_chunk: VideoClip):
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
         from webrtcvad import Vad
 
-        sample_rate = 48000
-        frame_duration = 10  # ms
-
-        audio = video_chunk.audio.set_fps(sample_rate)
-        sound = audio.to_soundarray()[:, 0]
-        sound = (abs(sound) * 2 ** 16).astype("int16")
+        array, old_fps = wav_audio_chunk.to_soundarray(), wav_audio_chunk.fps
+        array = AudioArrayClip(array, old_fps).set_fps(self.sample_rate).to_soundarray()[:, 0]
+        array = (abs(array) * 2 ** 16).astype("int16")
 
         prev_value = False
-        chunk = 2 * int(sample_rate * frame_duration / 1000)
-        sound = np.hstack([[0] * chunk, sound, [0] * 2 * chunk])
+        chunk = 2 * int(self.sample_rate * self.frame_duration / 1000)
+        array = np.hstack([[0] * chunk, array, [0] * 2 * chunk])
         begins_of_speech, ends_of_speech = [], []
-        for i in range(0, len(sound) - chunk, chunk):
-            cur_sound = sound[i: i + chunk]
-            value = Vad(self.aggressiveness).is_speech(cur_sound.data, sample_rate)
+        for i in range(0, len(array) - chunk, chunk):
+            cur_sound = array[i: i + chunk]
+            value = Vad(self.aggressiveness).is_speech(cur_sound.data, self.sample_rate)
             # I tried self.vad.is_speech(cur_sound.data, sample_rate),
             # but some how it isn't the same.
             if value and not prev_value:
-                begins_of_speech.append(i / sample_rate)
+                begins_of_speech.append(i / self.sample_rate)
             if not value and prev_value:
-                ends_of_speech.append(i / sample_rate)
+                ends_of_speech.append(i / self.sample_rate)
             prev_value = value
 
         interesting_parts = np.vstack([begins_of_speech, ends_of_speech]).transpose((1, 0))
@@ -272,14 +255,11 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
         self.set_vad_kwargs(vad_kwargs)
         self.set_is_adaptive(is_adaptive)
 
-    def get_interesting_parts(self, moviepy_video: VideoClip):
+    def get_interesting_parts(self, path: str):
         vad_func = self._get_vad_func()
-        with NamedTemporaryFile(prefix=TEMPORARY_DIRECTORY_PREFIX, suffix=".wav") as temp_file:
-            temporary_file_name = temp_file.name
-        moviepy_video.audio.write_audiofile(temporary_file_name)
+        temporary_file_name = save_audio_to_wav(path)
 
         dict_of_interesting_parts = vad_func(temporary_file_name)
-        os.remove(temporary_file_name)
         # Todo I don't by what value we should divide timestamps. 16000 works.
         #  It should be replaced by an expression depending on vad_args, vad_kwargs
         list_of_interesting_parts = [[elem['start'] / 16000, elem['end'] / 16000]
