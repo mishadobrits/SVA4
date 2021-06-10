@@ -4,7 +4,6 @@ Their description is
     loud_speed - speed of loud parts of video/audio.
     quiet_speed - speed of quiet parts of video/audio.
     global_speed - multiplies loud_speed and quiet_speed.
-    min_quiet_time - the program doesn't accelerate the first min_quiet_time seconds in every boring piece.
     max_quiet_time - in every boring video piece, the program skips part starting from max_quiet_time seconds.
     sound_threshold - a threshold between loud sound and quiet sound.
 Example of usage of Settings class
@@ -28,7 +27,6 @@ TRIVIAL_DICT = {
     "global_speed": 1,
     "loud_speed": 1,
     "quiet_speed": 6,
-    "min_quiet_time": 0.25,
     "max_quiet_time": 2,
     "volume_coefficient": 1,
     "quiet_volume_coefficient": 0.35,
@@ -60,7 +58,6 @@ class Settings:
         loud_speed - speed of loud parts of video/audio.
         quiet_speed - speed of quiet parts of video/audio.
         global_speed - multiplies loud_speed and quiet_speed.
-        min_quiet_time - the program doesn't accelerate the first min_quiet_time seconds in every boring piece.
         max_quiet_time - in every boring video piece, the program skips part starting from max_quiet_time seconds.
         sound_threshold - a threshold between loud sound and quiet sound.
 
@@ -217,22 +214,14 @@ class Settings:
         :return: new calculated interesting_parts_np_array and boring_parts_np_array
                  in the same format
         """
-        min_q, max_q = self.get_min_quiet_time(), self.get_max_quiet_time()
+        max_q = self.get_max_quiet_time()
         begin_sound_indexes = interesting_parts[:, 0]
         end_sound_indexes = interesting_parts[:, 1]
-
-        end_sound_indexes[:-1] += min_q
-
-        is_changing = begin_sound_indexes[1:] > end_sound_indexes[:-1]
-        begin_sound_indexes = begin_sound_indexes[np.hstack([True, is_changing])]
-        end_sound_indexes = end_sound_indexes[np.hstack([is_changing, True])]
-
-        interesting_parts = np.vstack([begin_sound_indexes, end_sound_indexes])
 
         boring_parts_beginnings = np.hstack([0, end_sound_indexes[:-1]])
         boring_parts_ends = np.minimum(
             begin_sound_indexes,
-            boring_parts_beginnings + max_q - min_q,
+            boring_parts_beginnings + max_q,
         )
         boring_parts_ends[0] = np.minimum(
             begin_sound_indexes[0],
@@ -240,4 +229,4 @@ class Settings:
         )
         boring_parts = np.vstack([boring_parts_beginnings, boring_parts_ends])
 
-        return interesting_parts.transpose((1, 0)), boring_parts.transpose((1, 0))
+        return interesting_parts, boring_parts.transpose((1, 0))

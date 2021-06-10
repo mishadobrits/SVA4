@@ -8,9 +8,45 @@ import itertools
 import math
 from wave import Wave_read
 import numpy as np
+import wavio
 
 
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
+
+
+class WavSubclip:
+    def __init__(self, path: str, start: float = 0, end: float = 10 ** 10):
+        self.path = path
+        self.start = start
+        with Wave_read(path) as wav_file:
+            self.sample_width = wav_file.getsampwidth()
+            self.nchannels= wav_file.getnchannels()
+            self.fps = wav_file.getframerate()
+            self.end = min(end, wav_file.getnframes() / self.fps)
+
+    def subclip(self, start, end):
+        return WavSubclip(self.path, self.start + start, self.start + end)
+
+    def to_soundarray(self):
+        sample_width = self.sample_width
+        sample_range = wavio._sampwidth_ranges[sample_width]
+        read_bytes = read_bytes_from_wave(Wave_read(self.path), self.start, self.end)
+        array = wavio._wav2array(self.nchannels, sample_width, read_bytes).astype("float64")
+
+        # print(array, array.min(), array.max(), sample_width, sample_range)
+        # breakpoint()
+        array = (array - sample_range[0]) / (sample_range[1] - sample_range[0])
+        # print("array", array,)
+        return 2 * array - 1  # fit to [-1, 1] range
+
+
+def save_audio_to_wav(input_video_path):
+    """
+    Saves videos audio to wav and returns its path
+    :param input_video_path:
+    :return: path od audio
+
+    """
 
 
 def str2error_message(msg):
@@ -87,15 +123,8 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
         # end kostil
 
         time_between_neighbour_frames[round(start_t): round(end_t)] = 1 / elem[2]
-        """
-        tc[math.floor(start_t)] += (1 - start_t % 1) * (1 / elem[2] - default_freq)
-        tc[math.floor(end_t)] += (end_t % 1) * (1 / elem[2] - default_freq)
-        tc[math.floor(start_t) + 1: math.floor(end_t)] = 1 / elem[2]
-        """
+
     timecodes = cumsum(time_between_neighbour_frames)
-    # with open('v1timecodes.npy', 'wb') as f:
-    #     np.save(f, v1timecodes)
-    # print(f"rt[-1] = {rt[-1]}")
     return timecodes
 
 
@@ -154,6 +183,6 @@ def ffmpeg_atempo_filter(speed):
     if speed <= 0:
         raise ValueError(f"ffmpeg speed {speed} must be positive")
     # if speed == 1:
-    #     return ""
+    #     return "-c:a copy"
 
     return f"-af atempo={speed}"
