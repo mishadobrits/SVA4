@@ -56,10 +56,11 @@ def save_audio_to_wav(input_video_path):
     ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True)
 
     input_video_path = os.path.abspath(input_video_path)
-    filename = os.path.join(gettempdir(), str(hash(input_video_path)) + ".wav")
+    filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
+    filepath = os.path.join(gettempdir(), filename)
 
-    ffmpeg(f" -i {input_video_path} {filename}")
-    return filename
+    ffmpeg(f" -i {input_video_path} {filepath}")
+    return filepath
 
 
 def str2error_message(msg):

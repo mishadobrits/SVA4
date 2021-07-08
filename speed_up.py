@@ -18,6 +18,8 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 from moviepy.audio.AudioClip import AudioArrayClip
 from moviepy.editor import VideoClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
+
 from some_functions import str2error_message, TEMPORARY_DIRECTORY_PREFIX, save_audio_to_wav, WavSubclip
 
 
@@ -92,7 +94,7 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
 
             chunk_interesting_parts = np.array(self.get_interesting_parts_from_wav_part(wav_part))
             interesting_parts.append(start + chunk_interesting_parts)
-
+        print()
         return np.vstack(interesting_parts)
 
     def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
@@ -255,9 +257,9 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
         self.set_vad_kwargs(vad_kwargs)
         self.set_is_adaptive(is_adaptive)
 
-    def get_interesting_parts(self, path: str):
+    def get_interesting_parts(self, video_path: str):
         vad_func = self._get_vad_func()
-        temporary_file_name = save_audio_to_wav(path)
+        temporary_file_name = save_audio_to_wav(video_path)
 
         dict_of_interesting_parts = vad_func(temporary_file_name)
         # Todo I don't by what value we should divide timestamps. 16000 works.
@@ -326,11 +328,11 @@ class AlgNot(SpeedUpAlgorithm):
         super(AlgNot, self).__init__()
         self.alg = algorithm
 
-    def get_interesting_parts(self, moviepy_video: VideoClip):
-        interesting_parts = self.alg.get_interesting_parts(moviepy_video)
+    def get_interesting_parts(self, video_path: VideoClip):
+        interesting_parts = self.alg.get_interesting_parts(video_path)
         begins_timestamps, ends_timestamps = interesting_parts[:, 0], interesting_parts[:, 1]
         new_begins_timestamps = np.hstack(([0], ends_timestamps))
-        new_ends_timestamps = np.hstack((begins_timestamps, [moviepy_video.duration]))
+        new_ends_timestamps = np.hstack((begins_timestamps, [video_path.duration]))
         return np.vstack((new_begins_timestamps, new_ends_timestamps)).transpose((1, 0))
 
     def __str__(self):
@@ -349,14 +351,14 @@ class AlgAnd(SpeedUpAlgorithm):
         super(AlgAnd, self).__init__()
         self.algs = algorithms
 
-    def get_interesting_parts(self, moviepy_video: VideoClip):
+    def get_interesting_parts(self, path: str):
         # list_of_ip = list of interesting parts
         rt_interesting_parts, n = [], len(self.algs)
 
         list_of_ip = [0] * n
         for i, alg in enumerate(self.algs):
             print(f"Calculating interesting parts using {alg}")
-            list_of_ip[i] = alg.get_interesting_parts(moviepy_video)
+            list_of_ip[i] = alg.get_interesting_parts(path)
 
         cur_alg_indexes = [0 for _ in range(n)]
         while all(cur_alg_indexes[i] < len(list_of_ip[i]) for i in range(n)):
@@ -394,8 +396,8 @@ class AlgOr(SpeedUpAlgorithm):
         self.algs = algorithms
         self.real_algorithm = AlgNot(AlgAnd(*[AlgNot(alg) for alg in algorithms]))
 
-    def get_interesting_parts(self, moviepy_video: VideoClip):
-        return self.real_algorithm.get_interesting_parts(moviepy_video)
+    def get_interesting_parts(self, video_path: str):
+        return self.real_algorithm.get_interesting_parts(video_path)
 
     def __str__(self):
         result = " or ".join(map(str, self.algs))
@@ -407,8 +409,8 @@ class _FakeDebugAlgorithm(SpeedUpAlgorithm):
         super(_FakeDebugAlgorithm, self).__init__()
         self.interesting_parts = np.array(interesting_parts, dtype="float64")
 
-    def get_interesting_parts(self, moviepy_video: VideoClip = None):
-        duration = 10 ** 10 if not moviepy_video else moviepy_video.duration
+    def get_interesting_parts(self, video_path: str):
+        duration = 10 ** 10 if not video_path else VideoFileClip(video_path).duration
         return np.minimum(self.interesting_parts, duration)
 
     def __str__(self):

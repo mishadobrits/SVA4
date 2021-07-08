@@ -32,6 +32,7 @@ def process_one_video_in_computer(
     output_video_path: str,
     is_result_cfr: bool = False,
     logger: logging.Logger = logging.getLogger("process_one_video_in_computer"),
+    working_directory_path=None,
     ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
 ):
     """
@@ -50,6 +51,7 @@ def process_one_video_in_computer(
         input_video_path,
         output_video_path,
         logger=logger,
+        working_directory_path=working_directory_path,
         ffmpeg_caller=ffmpeg_caller,
         is_result_cfr=is_result_cfr
     )
@@ -95,12 +97,11 @@ def apply_calculated_interesting_to_video(
         If it's None, process_one_video_in_computer creates a temporary directory
         for this purpose (and deletes it when it finishes).
         The name of the temporary directory starts with 'SVA4_' for easy identification.
-    :param hide_ffmpeg_output: = False (True/False)
-    :param is_result_cfr: = False (True/False)
+    :param hide_ffmpeg_output: bool = False (True/False)
+    :param is_result_cfr: bool = False (True/False)
         if this option is 'True'
     :return: None
     """
-    delete_all_sva4_temporary_objects()
     logger = logger or logging.getLogger('dummy')  # https://stackoverflow.com/a/13525899
     if Path(output_video_path).suffix != ".mkv":
         output_video_path += ".mkv"
@@ -212,7 +213,7 @@ def apply_calculated_interesting_to_video(
         video.audio.reader.close_proc()
         # If function deletes directory before deleting a video, video deletion raises an error.
         logger.log(1, f"Removing {working_directory_path} tree... ")
-        shutil.rmtree(working_directory_path)
+        delete_all_sva4_temporary_objects()
         logger.log(1, "done.")
 
 
