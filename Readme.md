@@ -37,6 +37,7 @@ so they if you don't use the appropriate algorithm, these modules are unnecessar
 Now you are ready to start work with it.
 
 # How to use it?<br>
+Lets write code, which cuts uninteresting parts.<br>
 If you want to process video using a built-in project algorithm.<br> 
 1. Firstly, you have to download your video from the Internet (if it located there).
    For example, you saved it in

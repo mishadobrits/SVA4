@@ -190,7 +190,7 @@ def apply_calculated_interesting_to_video(
     v2timecodes = v1timecodes_to_v2timecodes(timecodes, video.fps, video.reader.nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
-    logger.log(2, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
+    logger.log(0, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
     os.system(f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
 
     ffmpeg(

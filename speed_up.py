@@ -30,6 +30,9 @@ def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting
     end_sound_indexes[:-1] += min_quiet_time
 
     is_changing = begin_sound_indexes[1:] > end_sound_indexes[:-1]
+    if not is_changing.size:
+        return interesting_parts.reshape((-1, 2))
+
     begin_sound_indexes = begin_sound_indexes[np.hstack([True, is_changing])]
     end_sound_indexes = end_sound_indexes[np.hstack([is_changing, True])]
 
