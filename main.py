@@ -206,7 +206,7 @@ def apply_calculated_interesting_to_video(
         os.remove(output_video_path)
         # If os.path.exists(output_video_path) is True and overwrite_output_force is False
         # program quits earlier
-    os.renames(tempory_video_path, output_video_path)
+    shutil.move(tempory_video_path, output_video_path)
 
     if need_to_remove_working_directory_tree:
         video.reader.close()  # https://stackoverflow.com/a/45393619
