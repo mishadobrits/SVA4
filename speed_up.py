@@ -144,7 +144,7 @@ class VolumeThresholdAlgorithm(PiecemealWavSoundAlgorithm):
         return _apply_min_quiet_time_to_interesting_parts_array(self.min_q_time, interesting_parts)
 
     def __str__(self):
-        return f"VolumeThresholdAlgorithm(sound_threshold={self.get_sound_threshold()})"
+        return f"{type(self).__name__}(sound_threshold={self.get_sound_threshold()})"
 
 
 """
@@ -224,7 +224,7 @@ class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
         self.aggressiveness = aggressiveness
 
     def __str__(self):
-        return f"{__class__}({self.aggressiveness})"
+        return f"{type(self).__name__}({self.aggressiveness})"
 
 
 class SileroVadAlgorithm(SpeedUpAlgorithm):
@@ -306,7 +306,7 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
                                                    **self.vad_kwargs)
 
     def __str__(self):
-        self_str = "SileroVadAlgorithm("
+        self_str = f"{type(self).__name__}("
         if self.is_adaptive:
             self_str += "is_adaptive=True, "
         if self.get_vad_args():
