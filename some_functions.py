@@ -46,6 +46,13 @@ class WavSubclip:
         return self.subclip(start, end).to_soundarray()
 
 
+def pairwise(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
+
 def save_audio_to_wav(input_video_path):
     """
     Saves videos audio to wav and returns its path
@@ -150,6 +157,9 @@ def save_v2_timecodes_to_file(filepath, timecodes):
     :return: file object (closed)
     """
     str_timecodes = [format(elem * 1000, "f") for elem in timecodes]
+    for i, (elem, next_elem) in enumerate(pairwise(str_timecodes)):
+        if float(elem) >= float(next_elem):
+            str_timecodes[i + 1] += str(i).rjust(10, "0")
     with open(filepath, "w") as file:
         file.write("# timestamp format v2\n")
         file.write("\n".join(str_timecodes))
