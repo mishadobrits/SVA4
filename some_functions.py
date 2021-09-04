@@ -116,7 +116,7 @@ def input_answer(quetsion: str, answers_list: list, attempts: int = 10**10):
             return answer
 
 
-def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_output_fps=9 ** 9):
+def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_output_fps=10 ** 6):
     """
 
     :param v1timecodes: timecodes in v1format:
