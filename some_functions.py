@@ -137,13 +137,16 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
     default_freq = 1 / default_output_fps / video_fps
     time_between_neighbour_frames = default_freq * np.ones(length_of_video, dtype=np.float64)
     for elem in v1timecodes:
+        addition = 1 / elem[2] - default_freq
         start_t, end_t = elem[0] * video_fps, elem[1] * video_fps
         # todo begin kostil
-        start_t = min(start_t, length_of_video - 1)
-        end_t = min(end_t, length_of_video - 1)
+        start_t = min(start_t, length_of_video - 2)
+        end_t = min(end_t, length_of_video - 2)
         # end kostil
-
-        time_between_neighbour_frames[round(start_t): round(end_t)] = 1 / elem[2]
+        ceil_start_t, floor_end_t = math.ceil(start_t), math.floor(end_t)
+        time_between_neighbour_frames[ceil_start_t: floor_end_t] += addition
+        time_between_neighbour_frames[ceil_start_t - 1] += addition * (ceil_start_t - start_t)
+        time_between_neighbour_frames[floor_end_t + 1] += addition * (end_t - floor_end_t)
 
     timecodes = cumsum(time_between_neighbour_frames)
     return timecodes
@@ -210,3 +213,7 @@ def ffmpeg_atempo_filter(speed):
     #     return "-c:a copy"
 
     return f"-af atempo={speed}"
+
+
+def get_ffmpeg_filter_of_interesing_parts(settings):
+    pass

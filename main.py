@@ -68,7 +68,7 @@ def apply_calculated_interesting_to_video(
     ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
 ):
     """
-    This function does what readme said
+    This function does what readme says
     (
         1) Changes interesting & boring parts using 'settings' rules.
         2) Applies new parts to video (changing timecodes)
@@ -81,8 +81,8 @@ def apply_calculated_interesting_to_video(
              [start_of_piece2, end_of_piece2]].
         All values should be positions in video in seconds.
     :param settings: <class 'settings.Settings'>
-    :param input_video_path:
-    :param output_video_path:
+    :param input_video_path: str - path of input video
+    :param output_video_path: str - path of output video
     :param ffmpeg_caller: = ffmpeg_caller.FFMPEGCaller(
             print_command=False,
             hide_output=False,
@@ -94,12 +94,12 @@ def apply_calculated_interesting_to_video(
         working_directory_path = None (str/None)
         is a directory where this function saves all intermediate files.
         working_directory_path of should be str or None.
-        If it's None, process_one_video_in_computer creates a temporary directory
+        If value is None, process_one_video_in_computer creates a temporary directory
         for this purpose (and deletes it when it finishes).
         The name of the temporary directory starts with 'SVA4_' for easy identification.
-    :param hide_ffmpeg_output: bool = False (True/False)
     :param is_result_cfr: bool = False (True/False)
-        if this option is 'True'
+        if this option is 'True' output video will be CFR-ed using terminal comand
+        "ffmpeg -i {vfr_video_path} {cfr_video_path}"
     :return: None
     """
     logger = logger or logging.getLogger('dummy')  # https://stackoverflow.com/a/13525899
@@ -224,7 +224,7 @@ def delete_all_sva4_temporary_objects():
     TEMPORARY_DIRECTORY_PREFIX="SVA4_" for easy identification.
     If user terminates process function doesn't delete directory, cause of it terminated.
     So, function delete_all_tempories_sva4_directories deletes all directories and files which
-    marked with TEMPORARY_DIRECTORY_PREFIX
+    marked with prefix TEMPORARY_DIRECTORY_PREFIX
     :return: None
     """
     temp_dirs = [f for f in os.scandir(gettempdir()) if (f.is_dir() or f.is_file())]
