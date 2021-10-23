@@ -41,14 +41,21 @@ def process_one_video_in_computer(
         2) calls apply_calculated_interesting_to_video function
     )
     """
+    if " " in os.path.abspath(input_video_path):
+        new_name = TEMPORARY_DIRECTORY_PREFIX + os.path.split(input_video_path)[1].replace(" ", "__")
+        new_video_path = os.path.join(gettempdir(), new_name)
+        shutil.copyfile(input_video_path, new_video_path)
+        new_input_video_path = new_video_path
+    else:
+        new_input_video_path = input_video_path
 
     print("  Splitting audio into boring / interesting parts")
-    interesting_parts = speedup_algorithm.get_interesting_parts(input_video_path)
+    interesting_parts = speedup_algorithm.get_interesting_parts(new_input_video_path)
     # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_to_video(
         interesting_parts,
         settings,
-        input_video_path,
+        new_input_video_path,
         output_video_path,
         logger=logger,
         working_directory_path=working_directory_path,
@@ -131,6 +138,11 @@ def apply_calculated_interesting_to_video(
         need_to_remove_working_directory_tree = True
         logger.log(1, f"Temp floder: {working_directory_path}")
 
+    if " " in os.path.abspath(input_video_path):
+        new_video_path = tpath(f"input_video.{os.path.splitext(input_video_path)}")
+        shutil.copyfile(input_video_path, new_video_path)
+        input_video_path = new_video_path
+
     video = VideoFileClip(input_video_path)
 
     interesting_parts, boring_parts = settings.process_interestingpartsarray(interesting_parts)
@@ -161,7 +173,7 @@ def apply_calculated_interesting_to_video(
         f"-i {input_video_path} -vn {ffmpeg_atempo_filter(inter_speed)} {interesting_audio_path}"
     )
 
-    timecodes = []
+    v1timecodes = []
     with Wave_read(boring_audio_path) as boring_audio,\
             Wave_read(interesting_audio_path) as interesting_audio,\
             Wave_write(temp_final_audio_path) as temp_audio:
@@ -173,7 +185,7 @@ def apply_calculated_interesting_to_video(
             for file, part in parts_with_file:
                 if part is None:
                     continue
-                timecodes.append([part[0], part[1], part[2] * video.fps])
+                v1timecodes.append([part[0], part[1], part[2] * video.fps])
                 part[0], part[1] = part[0] / part[2], part[1] / part[2]
 
                 for start in np.arange(part[0], part[1], AUDIO_CHUNK_IN_SECONDS):
@@ -187,10 +199,10 @@ def apply_calculated_interesting_to_video(
     ffmpeg(f"-i {input_video_path} -c copy -an {temp_images_path}")
 
     v2timecodes_path, video_path2 = tpath("timecodes.v2"), tpath("v2video.mkv")
-    v2timecodes = v1timecodes_to_v2timecodes(timecodes, video.fps, video.reader.nframes)
+    v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, video.fps, video.reader.nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
-    logger.log(0, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
+    logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
     os.system(f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
 
     ffmpeg(
@@ -212,9 +224,8 @@ def apply_calculated_interesting_to_video(
         video.reader.close()  # https://stackoverflow.com/a/45393619
         video.audio.reader.close_proc()
         # If function deletes directory before deleting a video, video deletion raises an error.
-        logger.log(1, f"Removing {working_directory_path} tree... ")
-        delete_all_sva4_temporary_objects()
-        logger.log(1, "done.")
+    delete_all_sva4_temporary_objects()
+
 
 
 def delete_all_sva4_temporary_objects():

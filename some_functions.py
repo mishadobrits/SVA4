@@ -137,16 +137,31 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
     default_freq = 1 / default_output_fps / video_fps
     time_between_neighbour_frames = default_freq * np.ones(length_of_video, dtype=np.float64)
     for elem in v1timecodes:
-        addition = 1 / elem[2] - default_freq
+
         start_t, end_t = elem[0] * video_fps, elem[1] * video_fps
         # todo begin kostil
-        start_t = min(start_t, length_of_video - 2)
-        end_t = min(end_t, length_of_video - 2)
+        start_t, end_t = min(start_t, length_of_video - 1), min(end_t, length_of_video - 1)
+        start_i, end_i = math.floor(start_t), math.floor(end_t) + 1
+
+        X = time_between_neighbour_frames[start_i: end_i]
+        if not X.size:
+            print(start_t, end_t, start_i, end_i)
+        X += 1 / elem[2] * (end_t - start_t) / (end_i - start_i)
+        # print((end_i - start_t) / elem[2] - sum(X))
         # end kostil
+
+
+        """
+        addition = 1 / elem[2] - default_freq
+        # print(start_t, end_t, addition, ":")
         ceil_start_t, floor_end_t = math.ceil(start_t), math.floor(end_t)
+        # print(f"  [{ceil_start_t}-{floor_end_t}] += {addition}")
+        # print(f"  [{ceil_start_t - 1}] += {addition} * {(ceil_start_t - start_t)}")
+        # print(f"  [{floor_end_t}] += {addition} * {(end_t - floor_end_t)}")
         time_between_neighbour_frames[ceil_start_t: floor_end_t] += addition
         time_between_neighbour_frames[ceil_start_t - 1] += addition * (ceil_start_t - start_t)
-        time_between_neighbour_frames[floor_end_t + 1] += addition * (end_t - floor_end_t)
+        time_between_neighbour_frames[floor_end_t] += addition * (end_t - floor_end_t)
+        # """
 
     timecodes = cumsum(time_between_neighbour_frames)
     return timecodes
