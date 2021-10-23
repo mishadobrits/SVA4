@@ -13,8 +13,12 @@ Currently, there are
 """
 import math
 import os
+import random
+import wave
 from math import ceil
 from tempfile import NamedTemporaryFile
+
+import librosa as librosa
 import numpy as np
 from moviepy.audio.AudioClip import AudioArrayClip
 from moviepy.editor import VideoClip
@@ -267,6 +271,7 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
         dict_of_interesting_parts = vad_func(temporary_file_name)
         # Todo I don't by what value we should divide timestamps. 16000 works.
         #  It should be replaced by an expression depending on vad_args, vad_kwargs
+        #  https://t.me/silero_speech/1392
         list_of_interesting_parts = [[elem['start'] / 16000, elem['end'] / 16000]
                                      for elem in dict_of_interesting_parts]
         return np.array(list_of_interesting_parts)
@@ -331,11 +336,11 @@ class AlgNot(SpeedUpAlgorithm):
         super(AlgNot, self).__init__()
         self.alg = algorithm
 
-    def get_interesting_parts(self, video_path: VideoClip):
+    def get_interesting_parts(self, video_path: str):
         interesting_parts = self.alg.get_interesting_parts(video_path)
         begins_timestamps, ends_timestamps = interesting_parts[:, 0], interesting_parts[:, 1]
         new_begins_timestamps = np.hstack(([0], ends_timestamps))
-        new_ends_timestamps = np.hstack((begins_timestamps, [video_path.duration]))
+        new_ends_timestamps = np.hstack((begins_timestamps, [VideoFileClip(video_path).duration]))
         return np.vstack((new_begins_timestamps, new_ends_timestamps)).transpose((1, 0))
 
     def __str__(self):
@@ -418,3 +423,41 @@ class _FakeDebugAlgorithm(SpeedUpAlgorithm):
 
     def __str__(self):
         return f"{__class__.__name__}({self.interesting_parts.tolist()})"
+
+
+class CropLongSounds(SpeedUpAlgorithm):
+    def __init__(self, max_lenght_of_one_sound=0.05, threshold=0.995):
+        self.step = max_lenght_of_one_sound
+        self.threshold = threshold
+        super(CropLongSounds, self).__init__()
+
+    def get_interesting_parts(self, video_path: str):
+        def cdot(a, b):
+            if type(a) == type(b) == int:
+                return a * b
+            return (a * b).sum()
+
+        def cos(a, b):
+            if not cdot(a, a) * cdot(b, b):
+                return 1
+            return cdot(a, b) / (cdot(a, a) * cdot(b, b)) ** 0.5
+
+        temporary_file_name = save_audio_to_wav(video_path)
+        spec = 1
+        interesting_parts = []
+        with wave.open(temporary_file_name) as input_audio:
+            duration = input_audio.getnframes() / input_audio.getframerate()
+            for i in np.arange(0, duration - self.step, self.step):
+                if random.random() < 0.01:
+                    print(i)
+                sound, rate = librosa.load(temporary_file_name, offset=i, duration=self.step)
+                prev_spec = spec
+                spec = librosa.feature.mfcc(sound, rate)
+                if cos(spec, prev_spec) < self.threshold:
+                    interesting_parts.append([i, i + self.step])
+        interesting_parts.append([duration - self.step, self.step])
+        return np.array(interesting_parts)
+
+    def __str__(self):
+        s = f"{__class__.__name__}(max_lenght_of_one_sound={self.step}, threshold={self.threshold})"
+        return s
