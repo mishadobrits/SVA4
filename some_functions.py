@@ -145,7 +145,8 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
 
         X = time_between_neighbour_frames[start_i: end_i]
         if not X.size:
-            print(start_t, end_t, start_i, end_i)
+            continue
+            # print(start_t, end_t, start_i, end_i)
         X += 1 / elem[2] * (end_t - start_t) / (end_i - start_i)
         # print((end_i - start_t) / elem[2] - sum(X))
         # end kostil
