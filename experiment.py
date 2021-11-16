@@ -1,150 +1,125 @@
-import itertools
 import math
 import os
 import random
-import re
-import time
-import wave
-from tempfile import TemporaryDirectory
-
+import logging
+from decimal import getcontext
+from tempfile import gettempdir
+from main import delete_all_sva4_temporary_objects
 import numpy as np
-from moviepy.audio.AudioClip import AudioArrayClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-# from main import _get_ffmpeg_atempo_filter
-from main import process_one_video_in_computer
-from some_functions import (
-    v1timecodes_to_v2timecodes,
-    save_v2_timecodes_to_file,
-    FFMPEGCaller,
-)
 from settings import Settings
-from speed_up import VolumeAlgorithm
+from some_functions import save_v2_timecodes_to_file, v1timecodes_to_v2timecodes
+from speed_up import _FakeDebugAlgorithm, AlgOr, CropLongSounds, AlgNot
 
-r'''sound = np.array([0, 0, 0, 0.9, 0, 0.9, 0.9, 0, 0, 0, 0, 0, 0, 0.9, 0], dtype="float32").reshape(-1, 1)
-# print(sound)
-a = AudioArrayClip(sound, fps=1)
-v = VideoFileClip(r"C:\Users\m\Downloads\Sites-Buffers\sva_geoma_lection_31mar21.avi.avi")
-v.audio = a
-print(v.audio.to_soundarray().max(axis=1).reshape(-1))
 
-loud_parts = VolumeAlgorithm(0.5).get_interesting_parts(v)
-print(loud_parts)
+def read(filename):
+    with open(f"tests/{filename}.npy", "rb") as f:
+        abc = np.load(f, allow_pickle=False)
+    with open(f"tests/{filename}.txt", "w") as f:
+        f.write("\n".join(map(str, abc)))
 
-s = Settings(min_quiet_time=2, max_quiet_time=3)
-inter, uninter = apply_settings_to_interestingpartsarray(loud_parts, s)
-print(inter)
-print(uninter)
-inter, uninter = inter.transpose((1, 0)), uninter.transpose((1, 0))
-for elem in zip(uninter, inter):
-    print(elem)
-""" + 0.9
+    return abc
 
-arr = begin_sound_indexes[1:] > end_sound_indexes[:-1]
-begin_sound_indexes = begin_sound_indexes[np.hstack([np.array([True]), arr])]
-end_sound_indexes = end_sound_indexes[np.hstack([arr, np.array([True])])]
+
+def debug_and_alg(input_video_path):
+    a, b, c, abc = read(0), read(1), read(2), read("rt")
+    x, y, z, xyz = _FakeDebugAlgorithm(a), _FakeDebugAlgorithm(b), _FakeDebugAlgorithm(c), _FakeDebugAlgorithm(abc)
+
+
+def debug_audio(input_video_path):
+    from ffmpeg_caller import FFMPEGCaller
+    from some_functions import WavSubclip
+    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True)
+    audio_path = "test_audio.wav"
+    ffmpeg(f"-i {input_video_path} {audio_path}")
+    for i in range(1000):
+        start = i  # random.random() * 100
+        end = i + 2  # start + random.random() * 10
+        wav = WavSubclip(audio_path).subclip(start, end).to_soundarray()
+        honest_audio = AudioFileClip(audio_path).subclip(start, end).to_soundarray()
+        print(i, abs(wav - honest_audio).max())
+        # print(wav, honest_audio)
+        # assert (wav == honest_audio).all(), "not equal"
+
+
+def is_bad(a: float):
+    fstr = lambda elem: format(elem * 1000, "f")
+    delta = 10 ** -6 / 240
+    return fstr(a) == fstr(a + delta)
+
+
+
 """
+Testing process_one_video_in_computer function
+"""
+import sys
+sys.path.append("/content/SVA4")
 
-# print(np.vstack([begin_sound_indexes, end_sound_indexes]))
-
-
-print()
-"""'''
+from main import process_one_video_in_computer
+from settings import Settings
+from ffmpeg_caller import FFMPEGCaller
+from speed_up import (
+    VolumeThresholdAlgorithm,
+    WebRtcVADAlgorithm,
+    SileroVadAlgorithm,
+    AlgOr,
+    AlgAnd
+)
 
 # """
-def print_v2timecodes_as_v1(filepath=r"Tempary_files/2/timecodes.v2"):
-    with open(filepath) as f:
-        f.readline()
-        previous_elem, previous_value = 0, -1
-        start_of_part, value = 0, -1
-        for i, elem in enumerate(f.readlines()):
-            value = (float(elem) - previous_elem) / 1000
-            previous_elem = float(elem)
-
-            if abs(value - previous_value) > 10 ** -6:
-                print(
-                    start_of_part,
-                    i / 25,
-                    round(1 / previous_value / 25)
-                    if round(previous_value, 6)
-                    else u"∞",
-                )
-                start_of_part = i / 25
-                previous_value = value
+def read_v1(v1path="tmp/timecodes.v1"):
+    with open(v1path) as v1file:
+        v1file.readline()
+        v1file.readline()
+        v1 = [list(map(float, line.split(","))) for line in v1file]
+    return v1
 
 
-# """
+def read_v2(v2path="tmp/timecodes.v2"):
+    with open(v2path) as v2file:
+        v2file.readline()
+        v2 = [float(line) for line in v2file]
+    return v2
 
 
-def watch_v2timecodes(filepath=r"Tempary_files/2/timecodes.v2"):
-    with open(filepath) as f:
-        fcontent = "".join(f.readlines()[1:])
-
-    tc = np.array(list(map(float, fcontent.split())))
-    # print(tc[:10])
-    while True:
-        time = input("input time: ")
-        if time == "quit":
-            break
-        try:
-            time = float(time)
-            print(tc[int(time * 25) - 1 : int(time * 25) + 2] / 1000)
-        except Exception as e:
-            print("Exception occurs:")
-            print(e)
-            print("Try again")
-            continue
+def check_v1_and_v2(v1path="tmp/timecodes.v1", v2path="tmp/timecodes.v2"):
+    v1, v2 = read_v1(v1path), read_v2(v2path)
+    print(sum((elem[1] - elem[0]) / elem[2] for elem in v1))
+    print(v2[-1] / 1000)
 
 
-def process_v1timecodes(
-    inp_path="v1timecodes.npy", out_path=r"Tempary_files/2/timecodes.v2"
-):
-    """
-
-    :param inp_path str:
-    :param out_path:
-    :return:
-    """
-    video = VideoFileClip(r"C:\Users\m\Downloads.mp4")
-    # watch_v2timecodes()
-    with open(inp_path, "rb") as f:
-        v1timecodes = np.load(f)
-        print(v1timecodes)
-
-    v2timecodes = v1timecodes_to_v2timecodes(
-        v1timecodes, video.fps, int(video.fps * video.duration)
-    )
-    save_v2_timecodes_to_file(out_path, v2timecodes)
-
-
-a = str(5, p=4)
-settings = Settings(min_quiet_time=1, quiet_speed=6)
-with open("tests/interesting_parts.npy", "rb") as f:
-    i = np.load(f)
-# print(i)
-i, b = settings.apply_settings_to_interestingpartsarray(i)
-print(i)
-print(b)
-
-with open(r"Tempary_files/2/timecodes.v2") as f:
-    fcontent = "".join(f.readlines()[1:])
-
-
-#
-tc = np.array(list(map(float, fcontent.split())))
-index = (tc[1:] - tc[:-1]).argmin()
-print(tc[index + 1] - tc[index])
-print(tc[index - 1 : index + 2])
-
-r"""v = VideoFileClip(r"Tempary_files/2/v2video1.mkv")
-print(v.filename)
-
-t = time.time()   # out10sec.mp4
-input_video_path = r"Tempary_files/out2.mkv" # r"C:\Users\m\Desktop\PythonProjects\SVA_4\Tempary_files\test2.mp4" #  r"C:\Users\m\Downloads.mp4"
-process_one_video_in_computer(input_video_path,
-                              VolumeAlgorithm(0.05),
-                              Settings(max_quiet_time=6),
-               r"C:\Users\m\Desktop\PythonProjects\SVA_4\Tempary_files\2\sva4_output.mkv",
-                              working_directory=r"Tempary_files\2")
-print(f"SVA4 successfully finishes after {time.time() - t} seconds of working")  # text.mkv input.mp4
 """
+
+save_v2_timecodes_to_file("tmp/timecodes.v2", v1timecodes_to_v2timecodes(read_v1(), 30, 150000))
+check_v1_and_v2()
+#"""
+
+
+# input_video_path = input("write path of input video (/content/input_video.mkv): ")
+input_video_path = r"C:\Users\m\Downloads\Sites-Buffers\ "[:-1] + input("Input filename: ")  # Клименко А В Дифференциальные уравнения 12.11.2021.mp4" # input("Input video path: ") #
+# speedup_algorithm = VolumeThresholdAlgorithm(0.02)  # or
+# speedup_algorithm = WebRtcVADAlgorithm(3) or
+# SileroVadAlgorithm(is_adaptive=True) or
+speedup_algorithm = AlgAnd(
+    VolumeThresholdAlgorithm(0.02),
+    # WebRtcVADAlgorithm(1),
+    # SileroVadAlgorithm(),
+    # CropLongSounds(max_lenght_of_one_sound=0.03, threshold=0.9985),  # is_adaptive=True
+)  # or any other option
+
+settings = Settings(quiet_speed=6)
+
+# output_video_path = input("write path of output video (/content/output_video.mkv): ")
+output_video_path = r"C:\Users\m\Downloads\Sites-Buffers\output with spaces.mkv"
+
+process_one_video_in_computer(
+    input_video_path,
+    speedup_algorithm,
+    settings,
+    output_video_path,
+    is_result_cfr=False,
+    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=False, print_command=True),
+)
+# """

@@ -244,7 +244,8 @@ def sha256sum(filename):
 
 def create_valid_path(path_with_spaces: str):
     if " " in os.path.abspath(path_with_spaces):
-        new_name = TEMPORARY_DIRECTORY_PREFIX + str(sha256sum(path_with_spaces)) + ".mkv"
+        path_without_spaces = os.path.split(path_with_spaces)[1].replace(" ", "__")
+        new_name = TEMPORARY_DIRECTORY_PREFIX + path_without_spaces + ".mkv"
         new_video_path = os.path.join(gettempdir(), new_name)
         shutil.copyfile(path_with_spaces, new_video_path)
         new_path = new_video_path
