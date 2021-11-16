@@ -3,10 +3,11 @@ This module only contains functions that others modules call.
 I moved them to a separate file because all modules use these functions,
  and they can't call each other in a circle.
 """
-
+import hashlib
 import itertools
 import math
 import os
+import shutil
 from wave import Wave_read
 from tempfile import gettempdir
 import numpy as np
@@ -229,6 +230,27 @@ def ffmpeg_atempo_filter(speed):
     #     return "-c:a copy"
 
     return f"-af atempo={speed}"
+
+
+def sha256sum(filename):
+    h = hashlib.sha256()
+    b = bytearray(128*1024)
+    mv = memoryview(b)
+    with open(filename, 'rb', buffering=0) as f:
+        for n in iter(lambda : f.readinto(mv), 0):
+            h.update(mv[:n])
+    return h.hexdigest()
+
+
+def create_valid_path(path_with_spaces: str):
+    if " " in os.path.abspath(path_with_spaces):
+        new_name = TEMPORARY_DIRECTORY_PREFIX + str(sha256sum(path_with_spaces)) + ".mkv"
+        new_video_path = os.path.join(gettempdir(), new_name)
+        shutil.copyfile(path_with_spaces, new_video_path)
+        new_path = new_video_path
+    else:
+        new_path = path_with_spaces
+    return new_path
 
 
 def get_ffmpeg_filter_of_interesing_parts(settings):

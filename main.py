@@ -16,7 +16,7 @@ from some_functions import (
     v1timecodes_to_v2timecodes,
     save_v2_timecodes_to_file,
     read_bytes_from_wave,
-    ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX,
+    ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
@@ -41,13 +41,7 @@ def process_one_video_in_computer(
         2) calls apply_calculated_interesting_to_video function
     )
     """
-    if " " in os.path.abspath(input_video_path):
-        new_name = TEMPORARY_DIRECTORY_PREFIX + os.path.split(input_video_path)[1].replace(" ", "__")
-        new_video_path = os.path.join(gettempdir(), new_name)
-        shutil.copyfile(input_video_path, new_video_path)
-        new_input_video_path = new_video_path
-    else:
-        new_input_video_path = input_video_path
+    new_input_video_path = create_valid_path(input_video_path)
 
     print("  Splitting audio into boring / interesting parts")
     interesting_parts = speedup_algorithm.get_interesting_parts(new_input_video_path)
@@ -221,11 +215,12 @@ def apply_calculated_interesting_to_video(
     shutil.move(tempory_video_path, output_video_path)
 
     if need_to_remove_working_directory_tree:
-        video.reader.close()  # https://stackoverflow.com/a/45393619
         video.audio.reader.close_proc()
+        video.reader.close()  # https://stackoverflow.com/a/45393619
+        # print("Here")
         # If function deletes directory before deleting a video, video deletion raises an error.
-    delete_all_sva4_temporary_objects()
 
+    delete_all_sva4_temporary_objects()
 
 
 def delete_all_sva4_temporary_objects():
