@@ -232,22 +232,13 @@ def ffmpeg_atempo_filter(speed):
     return f"-af atempo={speed}"
 
 
-def sha256sum(filename):
-    h = hashlib.sha256()
-    b = bytearray(128*1024)
-    mv = memoryview(b)
-    with open(filename, 'rb', buffering=0) as f:
-        for n in iter(lambda : f.readinto(mv), 0):
-            h.update(mv[:n])
-    return h.hexdigest()
-
-
 def create_valid_path(path_with_spaces: str):
     if " " in os.path.abspath(path_with_spaces):
-        path_without_spaces = os.path.split(path_with_spaces)[1].replace(" ", "__")
-        new_name = TEMPORARY_DIRECTORY_PREFIX + path_without_spaces + ".mkv"
+        path_hash = hashlib.sha1(path_with_spaces.encode("utf-8")).hexdigest()
+        new_name = TEMPORARY_DIRECTORY_PREFIX + path_hash + ".mkv"
         new_video_path = os.path.join(gettempdir(), new_name)
-        shutil.copyfile(path_with_spaces, new_video_path)
+        if os.path.exists(path_with_spaces):
+            shutil.copyfile(path_with_spaces, new_video_path)
         new_path = new_video_path
     else:
         new_path = path_with_spaces
