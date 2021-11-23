@@ -10,7 +10,7 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from settings import Settings
-from some_functions import save_v2_timecodes_to_file, v1timecodes_to_v2timecodes
+from some_functions import save_v2_timecodes_to_file, v1timecodes_to_v2timecodes, create_valid_path
 from speed_up import _FakeDebugAlgorithm, AlgOr, CropLongSounds, AlgNot
 
 
@@ -96,7 +96,7 @@ save_v2_timecodes_to_file("tmp/timecodes.v2", v1timecodes_to_v2timecodes(read_v1
 check_v1_and_v2()
 #"""
 
-
+# create_valid_path("aaa a")
 # input_video_path = input("write path of input video (/content/input_video.mkv): ")
 input_video_path = r"C:\Users\m\Downloads\Sites-Buffers\ "[:-1] + input("Input filename: ")  # Клименко А В Дифференциальные уравнения 12.11.2021.mp4" # input("Input video path: ") #
 # speedup_algorithm = VolumeThresholdAlgorithm(0.02)  # or

@@ -235,7 +235,7 @@ def ffmpeg_atempo_filter(speed):
 def create_valid_path(path_with_spaces: str):
     if " " in os.path.abspath(path_with_spaces):
         path_hash = hashlib.sha1(path_with_spaces.encode("utf-8")).hexdigest()
-        new_name = TEMPORARY_DIRECTORY_PREFIX + path_hash + ".mkv"
+        new_name = TEMPORARY_DIRECTORY_PREFIX + path_hash + "." + os.path.splitext(path_with_spaces)[1]
         new_video_path = os.path.join(gettempdir(), new_name)
         if os.path.exists(path_with_spaces):
             shutil.copyfile(path_with_spaces, new_video_path)
