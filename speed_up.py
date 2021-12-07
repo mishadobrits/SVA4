@@ -237,10 +237,7 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
     from this (https://github.com/snakers4/silero-vad) project
     and returns them as interesting parts.
     """
-    def __init__(self, is_adaptive: bool = False, vad_args: list = [], vad_kwargs: dict = {}):
-        # default vad_args, vad_kwargs are mutable
-        vad_args, vad_kwargs = vad_args if vad_args else [], vad_kwargs if vad_kwargs else {}
-
+    def __init__(self, *vad_args, **vad_kwargs):
         try:
             import torch
         except ImportError:
@@ -251,18 +248,12 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
         self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                                 model='silero_vad')
         (self.get_speech_ts,
-         self.get_speech_ts_adaptive,
          self.save_audio,
          self.read_audio,
-         self.state_generator,
-         self.single_audio_stream,
+         self.VADIterator,
          self.collect_chunks) = self.utils
 
-        self.is_adaptive, self.vad_args, self.vad_kwargs = None, None, None
-
-        self.set_vad_args(vad_args)
-        self.set_vad_kwargs(vad_kwargs)
-        self.set_is_adaptive(is_adaptive)
+        self.vad_args, self.vad_kwargs = vad_args, vad_kwargs
 
     def get_interesting_parts(self, video_path: str):
         vad_func = self._get_vad_func()
@@ -276,35 +267,11 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
                                      for elem in dict_of_interesting_parts]
         return np.array(list_of_interesting_parts)
 
-    def get_is_adaptive(self):
-        return self.is_adaptive
-
-    def set_is_adaptive(self, value: bool):
-        assert type(value) == bool, "is_adaptive argument must be bool"
-        self.is_adaptive = value
-
-    def get_vad_args(self):
-        return self.vad_args
-
-    def set_vad_args(self, vad_args: list):
-        self.vad_args = vad_args if vad_args is not None else []
-
-    def get_vad_kwargs(self):
-        return self.vad_kwargs
-
-    def set_vad_kwargs(self, vad_kwargs: dict):
-        self.vad_kwargs = vad_kwargs if vad_kwargs is not None else {}
-
     def _get_vad_func(self):
         """
 
         :return: is_speech_func: str: "path/to/wav" -> bool
         """
-        if self.is_adaptive:
-            return lambda wav_path: self.get_speech_ts_adaptive(self.read_audio(wav_path),
-                                                                self.model,
-                                                                *self.vad_args,
-                                                                **self.vad_kwargs)
         return lambda wav_path: self.get_speech_ts(self.read_audio(wav_path),
                                                    self.model,
                                                    *self.vad_args,
@@ -312,12 +279,10 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
 
     def __str__(self):
         self_str = f"{type(self).__name__}("
-        if self.is_adaptive:
-            self_str += "is_adaptive=True, "
-        if self.get_vad_args():
-            self_str += f"vad_args={self.get_vad_args()}, "
-        if self.get_vad_kwargs():
-            self_str += f"vad_args={self.get_vad_kwargs()}, "
+        if self.vad_args:
+            self_str += f"vad_args={self.vad_args}, "
+        if self.vad_kwargs:
+            self_str += f"vad_args={self.vad_kwargs}, "
         if self_str.endswith(", "):
             self_str = self_str[:-2]
         self_str += ")"

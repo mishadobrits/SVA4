@@ -4,6 +4,9 @@ import random
 import logging
 from decimal import getcontext
 from tempfile import gettempdir
+
+import torch
+
 from main import delete_all_sva4_temporary_objects
 import numpy as np
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -96,6 +99,7 @@ save_v2_timecodes_to_file("tmp/timecodes.v2", v1timecodes_to_v2timecodes(read_v1
 check_v1_and_v2()
 #"""
 
+
 # create_valid_path("aaa a")
 # input_video_path = input("write path of input video (/content/input_video.mkv): ")
 input_video_path = r"C:\Users\m\Downloads\Sites-Buffers\ "[:-1] + input("Input filename: ")  # Клименко А В Дифференциальные уравнения 12.11.2021.mp4" # input("Input video path: ") #
@@ -105,7 +109,7 @@ input_video_path = r"C:\Users\m\Downloads\Sites-Buffers\ "[:-1] + input("Input f
 speedup_algorithm = AlgAnd(
     VolumeThresholdAlgorithm(0.02),
     # WebRtcVADAlgorithm(1),
-    # SileroVadAlgorithm(),
+    SileroVadAlgorithm(),
     # CropLongSounds(max_lenght_of_one_sound=0.03, threshold=0.9985),  # is_adaptive=True
 )  # or any other option
 

@@ -61,13 +61,13 @@ def save_audio_to_wav(input_video_path):
     :return: path od audio
 
     """
-    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True)
+    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True, print_command=True)
 
     input_video_path = os.path.abspath(input_video_path)
     filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
     filepath = os.path.join(gettempdir(), filename)
 
-    ffmpeg(f" -i {input_video_path} {filepath}")
+    ffmpeg(f"-i {input_video_path} {filepath}")
     return filepath
 
 
@@ -235,7 +235,7 @@ def ffmpeg_atempo_filter(speed):
 def create_valid_path(path_with_spaces: str):
     if " " in os.path.abspath(path_with_spaces):
         path_hash = hashlib.sha1(path_with_spaces.encode("utf-8")).hexdigest()
-        new_name = TEMPORARY_DIRECTORY_PREFIX + path_hash + "." + os.path.splitext(path_with_spaces)[1]
+        new_name = TEMPORARY_DIRECTORY_PREFIX + path_hash + os.path.splitext(path_with_spaces)[1]
         new_video_path = os.path.join(gettempdir(), new_name)
         if os.path.exists(path_with_spaces):
             shutil.copyfile(path_with_spaces, new_video_path)
