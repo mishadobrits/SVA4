@@ -54,13 +54,13 @@ If you want to process video using a built-in project algorithm.<br>
        (link https://github.com/wiseman/py-webrtcvad) and returns them as interesting parts.<br>
        For example, `speedup_algorithm = WebRtcVADAlgorithm(2)`.<br>
        This algorithm requires `webrtcvad` module installed.<br>
-     * `speed_up.SileroVadAlgorithm(vad_args=[], vad_kwargs={])` selects speech from text using VAD algorithm
+     * `speed_up.SileroVadAlgorithm(*vad_args, **vad_kwargs)` selects speech from text using VAD algorithm
        from this (https://github.com/snakers4/silero-vad) project and returns them as interesting parts.<br>
        For example, `speedup_algorithm = SileroVadAlgorithm(trig_sum=0.25, neg_trig_sum=0.7)`<br>
        `SileroVadAlgorithm` requires installed `torch` and `torchaudio` modules.
    * Complex algoritms     
      * `AlgNot(alg)` accepts `alg` as arguments and swap interesting and boring parts.
-        For example, `AlgNot(SileroVadAlgorithm(is_adaptive=True))`
+        For example, `AlgNot(SileroVadAlgorithm())`
      * `speed_up.AlgAnd(alg1, alg2, alg3, ... algn)` accepts algorithms as arguments
        and returns parts which all algorithms select as interesting parts.
        For example, 
