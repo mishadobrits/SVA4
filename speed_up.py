@@ -100,7 +100,8 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
             wav_part = wav_audio.subclip(start, end)
 
             chunk_interesting_parts = np.array(self.get_interesting_parts_from_wav_part(wav_part))
-            interesting_parts.append(start + chunk_interesting_parts)
+            if chunk_interesting_parts.size:
+                interesting_parts.append(start + chunk_interesting_parts)
         print()
         return np.vstack(interesting_parts)
 
@@ -231,23 +232,22 @@ class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
         return f"{type(self).__name__}({self.aggressiveness})"
 
 
-class SileroVadAlgorithm(SpeedUpAlgorithm):
+class SileroVadAlgorithm(PiecemealWavSoundAlgorithm):
     """
     This algorithm selects speech from text using VAD algorithm
     from this (https://github.com/snakers4/silero-vad) project
     and returns them as interesting parts.
     """
-    def __init__(self, *vad_args, **vad_kwargs):
-        try:
-            import torch
-        except ImportError:
-            msg = "the {} class requires installed torch module."
-            raise ImportError(msg.format(__class__))
+    def __init__(self, *vad_args, onnx: bool = True, **vad_kwargs):
+        import torch
+
         super(SileroVadAlgorithm, self).__init__()
 
         self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
-                                                model='silero_vad')
-        (self.get_speech_ts,
+                                                model='silero_vad',
+                                                force_reload=False,
+                                                onnx=onnx)
+        (self.get_speech_timestamps,
          self.save_audio,
          self.read_audio,
          self.VADIterator,
@@ -255,38 +255,41 @@ class SileroVadAlgorithm(SpeedUpAlgorithm):
 
         self.vad_args, self.vad_kwargs = vad_args, vad_kwargs
 
-    def get_interesting_parts(self, video_path: str):
-        vad_func = self._get_vad_func()
-        temporary_file_name = save_audio_to_wav(video_path)
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+        import torchaudio
+        import torch
+        available_rate = 16000
+        sound = wav_audio_chunk.to_soundarray()[:, 0]
+        sound = torch.tensor(sound, dtype=torch.float32)
 
-        dict_of_interesting_parts = vad_func(temporary_file_name)
+        transform = torchaudio.transforms.Resample(orig_freq=wav_audio_chunk.fps,
+                                                   new_freq=available_rate,
+                                                   dtype=sound.dtype)
+        sound = transform(sound)   # https://github.com/snakers4/silero-vad/blob/76687cbe25ffdf992ad824a36bfe73f6ae1afe72/utils_vad.py#L86
+
+        dict_of_interesting_parts = self.get_speech_timestamps(
+            sound,
+            self.model,
+            *self.vad_args,
+            **self.vad_kwargs
+        )
         # Todo I don't by what value we should divide timestamps. 16000 works.
         #  It should be replaced by an expression depending on vad_args, vad_kwargs
         #  https://t.me/silero_speech/1392
-        list_of_interesting_parts = [[elem['start'] / 16000, elem['end'] / 16000]
+        list_of_interesting_parts = [[elem['start'] / available_rate, elem['end'] / available_rate]
                                      for elem in dict_of_interesting_parts]
         return np.array(list_of_interesting_parts)
 
-    def _get_vad_func(self):
-        """
-
-        :return: is_speech_func: str: "path/to/wav" -> bool
-        """
-        return lambda wav_path: self.get_speech_ts(self.read_audio(wav_path),
-                                                   self.model,
-                                                   *self.vad_args,
-                                                   **self.vad_kwargs)
-
     def __str__(self):
-        self_str = f"{type(self).__name__}("
+        answer = f"{type(self).__name__}("
         if self.vad_args:
-            self_str += f"vad_args={self.vad_args}, "
+            answer += f"vad_args={self.vad_args}, "
         if self.vad_kwargs:
-            self_str += f"vad_args={self.vad_kwargs}, "
-        if self_str.endswith(", "):
-            self_str = self_str[:-2]
-        self_str += ")"
-        return self_str
+            answer += f"vad_kwargs={self.vad_kwargs}, "
+        if answer.endswith(", "):
+            answer = answer[:-2]
+        answer += ")"
+        return answer
 
 
 class AlgNot(SpeedUpAlgorithm):
