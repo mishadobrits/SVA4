@@ -21,8 +21,8 @@ input_video_path = input("write path of input video: ")
 # SileroVadAlgorithm(is_adaptive=True) or
 speedup_algorithm = AlgAnd(
     VolumeThresholdAlgorithm(0.023, min_quiet_time=0.2),
-    WebRtcVADAlgorithm(2),
-    SileroVadAlgorithm(is_adaptive=True),
+    # WebRtcVADAlgorithm(2),
+    SileroVadAlgorithm(),
 )  # or any other option
 
 settings = Settings(quiet_speed=6)

@@ -187,21 +187,15 @@ def apply_calculated_interesting_to_video(
                     temp_audio.writeframes(read_bytes_from_wave(file, start, end))
 
     ffmpeg(f"-i {temp_final_audio_path} {final_audio_path}")
-    temp_images_path = tpath("temp_video.mp4")
     tempory_video_path = tpath("tempory_video.mkv")
-
-    ffmpeg(f"-i {input_video_path} -c copy -an {temp_images_path}")
 
     v2timecodes_path, video_path2 = tpath("timecodes.v2"), tpath("v2video.mkv")
     v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, video.fps, video.reader.nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
-    logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
-    os.system(f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
+    # logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
+    os.system(f"mkvmerge -o {tempory_video_path} --timestamps 0:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
 
-    ffmpeg(
-        f"-i {video_path2} -i {final_audio_path} -map 0:v -c copy -map 1:a {tempory_video_path}"
-    )
     if is_result_cfr:
         logger.log(1, "CFR-ing video")
         temporary_vfr_video_path = tpath("tempory_vfr_video.mkv")
