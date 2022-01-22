@@ -3,7 +3,9 @@ This file contains FFMPEGCaller class to call ffmpeg with some options.
 Options description is in FFMPEGCaller.__doc__
 """
 import os
+from imageio_ffmpeg import get_ffmpeg_exe
 
+PATH_TO_FFMPEG_EXE = get_ffmpeg_exe()
 
 class FFMPEGCaller:
     """
@@ -72,7 +74,7 @@ class FFMPEGCaller:
             else:  # self.overwrite_force -is None
                 pass
 
-        command = "ffmpeg " + command
+        command = PATH_TO_FFMPEG_EXE + " " + command
         if self.hide_output:
             command += " -hide_banner -loglevel error"
         if self.print_command:

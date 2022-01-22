@@ -24,11 +24,9 @@ and quiet_parts was synonym to boring_parts. I will rename all pieces of code wi
 until it happened keep that quiet=boring and loud=interesting. Sorry for this.<br>
 
 # Instalation
-1. Download the FFmpeg from the official website https://ffmpeg.org/download.html.
-2. Make FFmpeg seen from the command line.
-3. Download the mkvmerge from the official website https://mkvtoolnix.download/.
-4. Make mkvmerge seen from the command line.
-5. Download or clone this code from Github.<br>
+1. Download the mkvmerge from the official website https://mkvtoolnix.download/.
+2. Make mkvmerge seen from the command line.
+3. Download or clone this code from Github.<br>
    
 Modules `webrtcvad`, `torch` and `torchaudio` are used only for their algorithms,
 so they if you don't use the appropriate algorithm, these modules are unnecessary.<br>
