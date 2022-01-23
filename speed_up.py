@@ -12,19 +12,12 @@ Currently, there are
 
 """
 import math
-import os
 import random
 import wave
-from math import ceil
-from tempfile import NamedTemporaryFile
-
 import librosa as librosa
 import numpy as np
-from moviepy.audio.AudioClip import AudioArrayClip
-from moviepy.editor import VideoClip
-from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from some_functions import str2error_message, TEMPORARY_DIRECTORY_PREFIX, save_audio_to_wav, WavSubclip
+from some_functions import str2error_message, save_audio_to_wav, WavSubclip, get_duration
 
 
 def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting_parts):
@@ -196,7 +189,8 @@ class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
         from webrtcvad import Vad
 
         array, old_fps = wav_audio_chunk.to_soundarray(), wav_audio_chunk.fps
-        array = AudioArrayClip(array, old_fps).set_fps(self.sample_rate).to_soundarray()[:, 0]
+        index = np.arange(0, len(array), old_fps / self.sample_rate).astype(int)
+        array = array[index]
         array = (abs(array) * 2 ** 16).astype("int16")
 
         prev_value = False
@@ -308,7 +302,7 @@ class AlgNot(SpeedUpAlgorithm):
         interesting_parts = self.alg.get_interesting_parts(video_path)
         begins_timestamps, ends_timestamps = interesting_parts[:, 0], interesting_parts[:, 1]
         new_begins_timestamps = np.hstack(([0], ends_timestamps))
-        new_ends_timestamps = np.hstack((begins_timestamps, [VideoFileClip(video_path).duration]))
+        new_ends_timestamps = np.hstack((begins_timestamps, [get_duration(video_path)]))
         return np.vstack((new_begins_timestamps, new_ends_timestamps)).transpose((1, 0))
 
     def __str__(self):
@@ -386,7 +380,7 @@ class _FakeDebugAlgorithm(SpeedUpAlgorithm):
         self.interesting_parts = np.array(interesting_parts, dtype="float64")
 
     def get_interesting_parts(self, video_path: str):
-        duration = 10 ** 10 if not video_path else VideoFileClip(video_path).duration
+        duration = 10 ** 10 if not video_path else get_duration(video_path)
         return np.minimum(self.interesting_parts, duration)
 
     def __str__(self):

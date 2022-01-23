@@ -12,6 +12,8 @@ from wave import Wave_read
 from tempfile import gettempdir
 import numpy as np
 import wavio
+from imageio_ffmpeg import count_frames_and_secs
+
 from ffmpeg_caller import FFMPEGCaller
 
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
@@ -247,3 +249,13 @@ def create_valid_path(path_with_spaces: str):
 
 def get_ffmpeg_filter_of_interesing_parts(settings):
     pass
+
+
+def get_duration(video_path: str):
+    nframes, secs = count_frames_and_secs(video_path)
+    return secs
+
+
+def get_nframes(video_path: str):
+    nframes, secs = count_frames_and_secs(video_path)
+    return nframes

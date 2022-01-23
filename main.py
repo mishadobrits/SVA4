@@ -10,13 +10,12 @@ from tempfile import mkdtemp, gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
-from moviepy.editor import VideoFileClip
 from settings import Settings
 from some_functions import (
     v1timecodes_to_v2timecodes,
     save_v2_timecodes_to_file,
     read_bytes_from_wave,
-    ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path,
+    ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
@@ -137,14 +136,15 @@ def apply_calculated_interesting_to_video(
         shutil.copyfile(input_video_path, new_video_path)
         input_video_path = new_video_path
 
-    video = VideoFileClip(input_video_path)
+    nframes, duration = get_nframes(input_video_path), get_duration(input_video_path)
+    fps = nframes / duration
 
     interesting_parts, boring_parts = settings.process_interestingpartsarray(interesting_parts)
 
-    interesting_parts[:2] = (interesting_parts[:2] * video.fps).astype(int) / video.fps
-    boring_parts[:2] = (boring_parts[:2] * video.fps).astype(int) / video.fps
-    interesting_parts[:2] = np.minimum(int(video.fps * video.duration - 1), interesting_parts[:2])
-    boring_parts[:2] = np.minimum(int(video.fps * video.duration - 1), boring_parts[:2])
+    interesting_parts[:2] = (interesting_parts[:2] * fps).astype(int) / fps
+    boring_parts[:2] = (boring_parts[:2] * fps).astype(int) / fps
+    interesting_parts[:2] = np.minimum(int(fps * duration - 1), interesting_parts[:2])
+    boring_parts[:2] = np.minimum(int(fps * duration - 1), boring_parts[:2])
 
     inter_speed = settings.get_real_loud_speed()
     boring_speed = settings.get_real_quiet_speed()
@@ -179,7 +179,7 @@ def apply_calculated_interesting_to_video(
             for file, part in parts_with_file:
                 if part is None:
                     continue
-                v1timecodes.append([part[0], part[1], part[2] * video.fps])
+                v1timecodes.append([part[0], part[1], part[2] * fps])
                 part[0], part[1] = part[0] / part[2], part[1] / part[2]
 
                 for start in np.arange(part[0], part[1], AUDIO_CHUNK_IN_SECONDS):
@@ -190,7 +190,7 @@ def apply_calculated_interesting_to_video(
     tempory_video_path = tpath("tempory_video.mkv")
 
     v2timecodes_path, video_path2 = tpath("timecodes.v2"), tpath("v2video.mkv")
-    v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, video.fps, video.reader.nframes)
+    v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, fps, nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
     # logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
@@ -207,12 +207,6 @@ def apply_calculated_interesting_to_video(
         # If os.path.exists(output_video_path) is True and overwrite_output_force is False
         # program quits earlier
     shutil.move(tempory_video_path, output_video_path)
-
-    if need_to_remove_working_directory_tree:
-        video.audio.reader.close_proc()
-        video.reader.close()  # https://stackoverflow.com/a/45393619
-        # print("Here")
-        # If function deletes directory before deleting a video, video deletion raises an error.
 
     delete_all_sva4_temporary_objects()
 
