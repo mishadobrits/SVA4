@@ -156,7 +156,7 @@ def apply_calculated_interesting_to_video(
 
     boring_audio_path = tpath("boring_audio.wav")
     interesting_audio_path = tpath("interesting_audio.wav")
-    final_audio_path = tpath("final_audio.aac")
+    final_audio_path = tpath("final_audio.flac")
     temp_final_audio_path = tpath("temp_audio.wav")
 
     logger.log(1, f"writing audio with { {'speed': boring_speed}} to '{boring_audio_path}'")
