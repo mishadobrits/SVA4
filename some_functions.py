@@ -8,14 +8,15 @@ import itertools
 import math
 import os
 import shutil
-from wave import Wave_read
+from wave import Wave_read, Wave_write
 from tempfile import gettempdir
 import numpy as np
 import wavio
 from imageio_ffmpeg import count_frames_and_secs
-
 from ffmpeg_caller import FFMPEGCaller
 
+
+AUDIO_CHUNK_IN_SECONDS = 60
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
 
 
@@ -259,3 +260,21 @@ def get_duration(video_path: str):
 def get_nframes(video_path: str):
     nframes, secs = count_frames_and_secs(video_path)
     return nframes
+
+
+def collide(*iters):
+    was_iterated = True
+    while was_iterated:
+        was_iterated = False
+        for iter in iters:
+            try:
+                yield next(iter)
+                was_iterated = True
+            except StopIteration:
+                continue
+
+
+def copy_parts_of_wav(wav_read: Wave_read, start_t: float, end_t: float, wav_write: Wave_write):
+    for start in np.arange(start_t, end_t, AUDIO_CHUNK_IN_SECONDS):
+        end = min(end_t, start + AUDIO_CHUNK_IN_SECONDS)
+        wav_write.writeframes(read_bytes_from_wave(wav_read, start, end))

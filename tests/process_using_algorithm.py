@@ -35,5 +35,5 @@ process_one_video_in_computer(
     settings,
     output_video_path,
     is_result_cfr=False,
-    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True)
+    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True, print_command=True)
 )

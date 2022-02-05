@@ -10,18 +10,18 @@ from tempfile import mkdtemp, gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
+from typing import Callable
+
 from settings import Settings
 from some_functions import (
     v1timecodes_to_v2timecodes,
     save_v2_timecodes_to_file,
     read_bytes_from_wave,
     ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
+    collide, copy_parts_of_wav, save_audio_to_wav, AUDIO_CHUNK_IN_SECONDS,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
-
-
-AUDIO_CHUNK_IN_SECONDS = 60
 
 
 def process_one_video_in_computer(
@@ -55,6 +55,43 @@ def process_one_video_in_computer(
         ffmpeg_caller=ffmpeg_caller,
         is_result_cfr=is_result_cfr
     )
+
+
+'''
+def _apply_interesting_parts_to_audio(
+    interesting_parts: np.array,
+    boring_parts: np.array,
+    ispeed: float,
+    bspeed: float,
+    input_wav_path: str,
+    working_directory_path: str = mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX),
+    ffmpeg_caller: FFMPEGCaller = FFMPEGCaller()
+):
+    def tpath(filename):
+        """
+        returns the absolute path for a file with name filename in folder working_directory_path
+        """
+        return os.path.join(working_directory_path, filename)
+
+    iparts_audio = tpath("interesting_parts")
+    bparts_audio = tpath("boring_parts")
+
+    new_path_parts = []
+    iparts_length, bparts_lenght = 0, 0
+    with Wave_write(iparts_audio) as iaudio, Wave_write(bparts_audio) as baudio,\
+            Wave_read(input_wav_path) as input_wav:
+        iaudio.setparams(input_wav.getparams())
+        baudio.setparams(input_wav.getparams())
+
+        def add_info(iter, info):
+            for elem in iter:
+                return elem, info
+
+        for part, info in collide(add_info(boring_parts, "b"), add_info(interesting_parts, "i")):
+            new_path_parts.append([part, info])
+            copy_parts_of_wav(input_wav, part[0], part[1], baudio if info == "b" else iaudio)
+
+        ffmpeg_caller("")'''
 
 
 def apply_calculated_interesting_to_video(
@@ -125,10 +162,8 @@ def apply_calculated_interesting_to_video(
         """
         return os.path.join(working_directory_path, filename)
 
-    need_to_remove_working_directory_tree = False
     if working_directory_path is None:
         working_directory_path = mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX)
-        need_to_remove_working_directory_tree = True
         logger.log(1, f"Temp floder: {working_directory_path}")
 
     if " " in os.path.abspath(input_video_path):
@@ -153,18 +188,18 @@ def apply_calculated_interesting_to_video(
     interesting_parts = np.hstack(
         [interesting_parts, inter_speed * np.ones((len(interesting_parts), 1))]
     )
-
+    input_wav = save_audio_to_wav(input_video_path)
     boring_audio_path = tpath("boring_audio.wav")
     interesting_audio_path = tpath("interesting_audio.wav")
     final_audio_path = tpath("final_audio.flac")
     temp_final_audio_path = tpath("temp_audio.wav")
 
     logger.log(1, f"writing audio with { {'speed': boring_speed}} to '{boring_audio_path}'")
-    ffmpeg(f"-i {input_video_path} -vn {ffmpeg_atempo_filter(boring_speed)} {boring_audio_path}")
+    ffmpeg(f"-i {input_wav} -vn {ffmpeg_atempo_filter(boring_speed)} {boring_audio_path}")
 
     logger.log(1, f"writing audio with { {'speed': inter_speed}} to '{interesting_audio_path}'")
     ffmpeg(
-        f"-i {input_video_path} -vn {ffmpeg_atempo_filter(inter_speed)} {interesting_audio_path}"
+        f"-i {input_wav} -vn {ffmpeg_atempo_filter(inter_speed)} {interesting_audio_path}"
     )
 
     v1timecodes = []
