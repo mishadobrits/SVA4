@@ -10,8 +10,6 @@ from tempfile import mkdtemp, gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
-from typing import Callable
-
 from settings import Settings
 from some_functions import (
     v1timecodes_to_v2timecodes,

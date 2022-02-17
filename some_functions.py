@@ -70,7 +70,7 @@ def save_audio_to_wav(input_video_path):
     filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
     filepath = os.path.join(gettempdir(), filename)
 
-    ffmpeg(f"-i {input_video_path} {filepath}")
+    ffmpeg(f"-i {input_video_path} -ar 48000 {filepath}")
     return filepath
 
 
