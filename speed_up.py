@@ -12,12 +12,16 @@ Currently, there are
 
 """
 import math
+import os
 import random
+import sys
+import tempfile
 import wave
 import librosa as librosa
 import numpy as np
 
-from some_functions import str2error_message, save_audio_to_wav, WavSubclip, get_duration
+from ffmpeg_caller import FFMPEGCaller
+from some_functions import str2error_message, save_audio_to_wav, WavSubclip, get_duration, TEMPORARY_DIRECTORY_PREFIX
 
 
 def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting_parts):
@@ -423,3 +427,39 @@ class CropLongSounds(SpeedUpAlgorithm):
     def __str__(self):
         s = f"{__class__.__name__}(max_lenght_of_one_sound={self.step}, threshold={self.threshold})"
         return s
+
+
+class SubtitlesParts(SpeedUpAlgorithm):
+    def __init__(self, pred_extend=0.1, after_extend=0.25):
+        self.pred_extend = pred_extend
+        self.after_extend = after_extend
+        super(SubtitlesParts, self).__init__()
+
+    def get_interesting_parts(
+            self,
+            video_path: str,
+            ffmpeg_caller=FFMPEGCaller(hide_output=True, print_command=True, overwrite_force=True)
+    ):
+        temp_file_name = os.path.join(tempfile.gettempdir(), TEMPORARY_DIRECTORY_PREFIX + "temp_subtitles.srt")
+        ffmpeg_caller(f"-i {video_path} -map 0:s:0 {temp_file_name}")
+        with open(temp_file_name, "r") as f:
+            subtitles = f.readlines()
+            print(subtitles[:10])
+
+        timecodes_strings = subtitles[1::4]
+
+        def timecode2float(s: str):
+            s = s.strip()
+            hr, min, sec = s.split(":")
+            sec = sec.replace(",", ".")
+            return int(hr) * 60 ** 2 + int(min) * 60 + float(sec)
+
+        def timecode_str2float(timecode_str: str):
+            start, end = timecode_str.split("-->")
+            return [timecode2float(start), timecode2float(end)]
+
+        timecodes = np.array(list(map(timecode_str2float, timecodes_strings)))
+        timecodes[:, 0] -= self.pred_extend
+        timecodes[:, 1] += self.after_extend
+        timecodes = _apply_min_quiet_time_to_interesting_parts_array(0, timecodes)
+        return timecodes

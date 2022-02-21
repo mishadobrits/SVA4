@@ -9,7 +9,7 @@ import math
 import os
 import shutil
 from wave import Wave_read, Wave_write
-from tempfile import gettempdir
+from tempfile import gettempdir, mkdtemp
 import numpy as np
 import wavio
 from imageio_ffmpeg import count_frames_and_secs
@@ -77,6 +77,12 @@ def save_audio_to_wav(input_video_path):
 def str2error_message(msg):
     """Deletes \n from msg and replace ' '*n -> ' '"""
     return " ".join(list(msg.replace("\n", " ").split()))
+
+
+def get_working_directory_path(working_directory_path: str) -> str:
+    if working_directory_path is None:
+        return mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX)
+    return working_directory_path
 
 
 def read_bytes_from_wave(waveread_obj: Wave_read, start_sec: float, end_sec: float):

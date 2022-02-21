@@ -16,10 +16,51 @@ from some_functions import (
     save_v2_timecodes_to_file,
     read_bytes_from_wave,
     ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
-    collide, copy_parts_of_wav, save_audio_to_wav, AUDIO_CHUNK_IN_SECONDS,
+    save_audio_to_wav, AUDIO_CHUNK_IN_SECONDS, get_working_directory_path,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
+from multiprocessing.pool import ThreadPool as Pool
+from multiprocessing import Process
+
+
+def prepare_audio(
+        input_audio_path: str,
+        settings: Settings,
+        working_directory: str,
+        ffmpeg_caller: FFMPEGCaller
+):
+    """
+    Calls ffmpeg to create in working_dirctory boring_audio.wav with speed
+    settings.get_real_loud_speed() and interesting_audio.wav with speed
+    settings.get_real_quiet_speed() in parallel.
+    Returns absolute pathes of boring_audio.wav, nteresting_audio.wav
+    
+    :param input_audio_path: 
+    :param settings: 
+    :param working_directory: 
+    :param ffmpeg_caller: 
+    :return: 
+    """
+    boring_audio_path = os.path.join(working_directory, "boring_audio.wav")
+    interesting_audio_path = os.path.join(working_directory, "interesting_audio.wav")
+    inter_speed = settings.get_real_loud_speed()
+    boring_speed = settings.get_real_quiet_speed()
+
+    def get_speeded_audio(input_audio_path, speed, output_filename, ffmpeg_caller):
+        if os.path.exists(output_filename):
+            return
+        print(f"{input_audio_path}, {speed}, {output_filename}, {ffmpeg_caller}")
+        ffmpeg_caller(
+            f"-i {input_audio_path} -vn {ffmpeg_atempo_filter(speed)} {output_filename}"
+        )
+
+    pool = Pool()
+    pool.apply_async(get_speeded_audio, [input_audio_path, boring_speed, boring_audio_path, ffmpeg_caller])
+    pool.apply_async(get_speeded_audio, [input_audio_path, inter_speed, interesting_audio_path, ffmpeg_caller])
+    pool.close()
+    pool.join()
+    return boring_audio_path, interesting_audio_path
 
 
 def process_one_video_in_computer(
@@ -39,9 +80,22 @@ def process_one_video_in_computer(
     )
     """
     new_input_video_path = create_valid_path(input_video_path)
+    working_directory_path = get_working_directory_path(working_directory_path)
 
-    print("  Splitting audio into boring / interesting parts")
-    interesting_parts = speedup_algorithm.get_interesting_parts(new_input_video_path)
+    def get_interesting_parts_function(return_dict: dict):
+        print("  Splitting audio into boring / interesting parts")
+        return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
+
+    input_wav = save_audio_to_wav(input_video_path)
+    interesting_parts = {}
+
+    pool = Pool()
+    pool.apply_async(prepare_audio, (input_wav, settings, working_directory_path, ffmpeg_caller))
+    pool.apply_async(get_interesting_parts_function, args=(interesting_parts,))
+    pool.close()
+    pool.join()
+    interesting_parts = interesting_parts["ip"]
+
     # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_to_video(
         interesting_parts,
@@ -160,9 +214,7 @@ def apply_calculated_interesting_to_video(
         """
         return os.path.join(working_directory_path, filename)
 
-    if working_directory_path is None:
-        working_directory_path = mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX)
-        logger.log(1, f"Temp floder: {working_directory_path}")
+    working_directory_path = get_working_directory_path(working_directory_path)
 
     if " " in os.path.abspath(input_video_path):
         new_video_path = tpath(f"input_video.{os.path.splitext(input_video_path)}")
@@ -179,26 +231,18 @@ def apply_calculated_interesting_to_video(
     interesting_parts[:2] = np.minimum(int(fps * duration - 1), interesting_parts[:2])
     boring_parts[:2] = np.minimum(int(fps * duration - 1), boring_parts[:2])
 
-    inter_speed = settings.get_real_loud_speed()
-    boring_speed = settings.get_real_quiet_speed()
-
-    boring_parts = np.hstack([boring_parts, boring_speed * np.ones((len(boring_parts), 1))])
+    boring_parts = np.hstack(
+        [boring_parts, settings.get_real_quiet_speed() * np.ones((len(boring_parts), 1))]
+    )
     interesting_parts = np.hstack(
-        [interesting_parts, inter_speed * np.ones((len(interesting_parts), 1))]
+        [interesting_parts, settings.get_real_loud_speed() * np.ones((len(interesting_parts), 1))]
     )
     input_wav = save_audio_to_wav(input_video_path)
-    boring_audio_path = tpath("boring_audio.wav")
-    interesting_audio_path = tpath("interesting_audio.wav")
+    boring_audio_path, interesting_audio_path = prepare_audio(
+        input_wav, settings, working_directory_path, ffmpeg_caller
+    )
     final_audio_path = tpath("final_audio.flac")
     temp_final_audio_path = tpath("temp_audio.wav")
-
-    logger.log(1, f"writing audio with { {'speed': boring_speed}} to '{boring_audio_path}'")
-    ffmpeg(f"-i {input_wav} -vn {ffmpeg_atempo_filter(boring_speed)} {boring_audio_path}")
-
-    logger.log(1, f"writing audio with { {'speed': inter_speed}} to '{interesting_audio_path}'")
-    ffmpeg(
-        f"-i {input_wav} -vn {ffmpeg_atempo_filter(inter_speed)} {interesting_audio_path}"
-    )
 
     v1timecodes = []
     with Wave_read(boring_audio_path) as boring_audio,\
