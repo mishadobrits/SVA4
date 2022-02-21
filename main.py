@@ -50,7 +50,6 @@ def prepare_audio(
     def get_speeded_audio(input_audio_path, speed, output_filename, ffmpeg_caller):
         if os.path.exists(output_filename):
             return
-        print(f"{input_audio_path}, {speed}, {output_filename}, {ffmpeg_caller}")
         ffmpeg_caller(
             f"-i {input_audio_path} -vn {ffmpeg_atempo_filter(speed)} {output_filename}"
         )
