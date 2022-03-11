@@ -21,7 +21,6 @@ from some_functions import (
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
 from multiprocessing.pool import ThreadPool as Pool
-from multiprocessing import Process
 
 
 def prepare_audio(
@@ -85,7 +84,7 @@ def process_one_video_in_computer(
         print("  Splitting audio into boring / interesting parts")
         return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
 
-    input_wav = save_audio_to_wav(input_video_path)
+    input_wav = save_audio_to_wav(new_input_video_path)
     interesting_parts = {}
 
     pool = Pool()
