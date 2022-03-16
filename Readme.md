@@ -93,9 +93,27 @@ If you want to process video using a built-in project algorithm.<br>
    For example, `settings = Settings(min_quiet_time=0.2, quiet_speed=6)`
 4. The last but not least is to choose path for output **mkv** video
    (output video must be mkv, if output file extension isn't mkv `process_one_video_in_computer` adds `".mkv"` to the `output_video_path`).
-   For example, let be `output_video_path = input("write path of output mkv video: ")`. 
-
-5. When you finish all of these steps, run<br>
+   For example, let be `output_video_path = input("write path of output mkv video: ")`. <br> 
+5. <b> [optional]</b> The `ffmpeg_preprocess_audio` argument:
+* Used in audio extraction before applying speedup-alg and video editing
+   in cmd calling
+          `"ffmpeg -i {inp_path} {ffmpeg_preprocess_audio} -ar 44100 path/audio.wav"`.
+* Main examples:
+* * `''` - No filter.
+             Takes 0 additional time, recommended using if you're sure about your speed up algorithm.
+* * <i><b><u>[default]</u></b></i> `'-filter:a dynaudnorm'`.  Applies the dynaudnorm ffmpeg filter (normalizes volume in audio),
+             which helps VolumeThresholdAlgorithm and SileroVadAlgorithm.
+             Noise volume and very quiet speech increases not enough to hear.
+             Takes ~minute to complete for 80m 1GB video.
+* * `'-filter:a loudnorm'` Applies the loudnorm ffmpeg filter (normalizes volume in audio),
+             which helps VolumeThresholdAlgorithm and SileroVadAlgorithm.
+             Noise volume and very quiet speech increases enough to hear.
+             Takes ~10 minutes to complete for 80m 1GB video.
+* * `'-filter:a "volume=1.5"'` Increases volume in 1.5 time.
+             Takes ~20 sec to complete for 80m 1GB video.
+* * `'-filter:a "volume=10dB"'` Increases volume by 10 dB.
+             Takes ~20 sec to complete for 80m 1GB video.
+6. When you finish all of these steps, run<br>
 `process_one_video_in_computer(input_video_path, speedup_algorithm, settings, output_video_path)`
 to process your video.<br>
    Also, `process_one_video_in_computer` takes some optional kwargs<br>

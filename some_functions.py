@@ -57,9 +57,10 @@ def pairwise(iterable):
     return zip(a, b)
 
 
-def save_audio_to_wav(input_video_path):
+def save_audio_to_wav(input_video_path, ffmpeg_preprocess_audio=""):
     """
     Saves videos audio to wav and returns its path
+    :param ffmpeg_preprocess_audio:
     :param input_video_path:
     :return: path od audio
 
@@ -70,7 +71,7 @@ def save_audio_to_wav(input_video_path):
     filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
     filepath = os.path.join(gettempdir(), filename)
 
-    ffmpeg(f"-i {input_video_path} -ar 48000 {filepath}")
+    ffmpeg(f"-i {input_video_path} -ar 48000 {ffmpeg_preprocess_audio} {filepath}")
     return filepath
 
 

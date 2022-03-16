@@ -27,7 +27,7 @@ def prepare_audio(
         input_audio_path: str,
         settings: Settings,
         working_directory: str,
-        ffmpeg_caller: FFMPEGCaller
+        ffmpeg_caller: FFMPEGCaller,
 ):
     """
     Calls ffmpeg to create in working_dirctory boring_audio.wav with speed
@@ -70,12 +70,32 @@ def process_one_video_in_computer(
     logger: logging.Logger = logging.getLogger("process_one_video_in_computer"),
     working_directory_path=None,
     ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
+    ffmpeg_preprocess_audio: str = "-filter:a dynaudnorm",
 ):
     """
     This function processes video (
-        1) Uses 'speedup_algorithm' to get interesting parts of video
-        2) calls apply_calculated_interesting_to_video function
+        1) Extracts audio using "ffmpeg -i {inp_path} {ffmpeg_preprocess_audio} -ar 44100 path/audio.wav".
+        2) Uses 'speedup_algorithm' to get interesting parts of video.
+        3) Calls apply_calculated_interesting_to_video function.
     )
+    Param ffmpeg_preprocess_audio:
+        Applied in audio extraction in cmd
+             "ffmpeg -i {inp_path} {ffmpeg_preprocess_audio} -ar 44100 path/audio.wav".
+        Main examples:
+            '' - No filter.
+                Takes 0 additional time, recommended using if you're sure about your speed up algorithm.
+            '-filter:a dynaudnorm'. Applies the dynaudnorm ffmpeg filter (normalizes volume in audio),
+                which helps VolumeThresholdAlgorithm and SileroVadAlgorithm.
+                Noise volume and very quiet speech increases not enough to hear.
+                Takes ~minute to complete for 80m 1GB video.
+            '-filter:a loudnorm' Applies the loudnorm ffmpeg filter (normalizes volume in audio),
+                which helps VolumeThresholdAlgorithm and SileroVadAlgorithm.
+                Noise volume and very quiet speech increases enough to hear.
+                Takes ~10 minutes to complete for 80m 1GB video.
+            '-filter:a "volume=1.5"' Increases volume in 1.5 time.
+                Takes ~20 sec to complete for 80m 1GB video.
+            '-filter:a "volume=10dB"' Increases volume by 10 dB.
+                Takes ~20 sec to complete for 80m 1GB video.
     """
     new_input_video_path = create_valid_path(input_video_path)
     working_directory_path = get_working_directory_path(working_directory_path)
@@ -84,7 +104,7 @@ def process_one_video_in_computer(
         print("  Splitting audio into boring / interesting parts")
         return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
 
-    input_wav = save_audio_to_wav(new_input_video_path)
+    input_wav = save_audio_to_wav(new_input_video_path, ffmpeg_preprocess_audio)
     interesting_parts = {}
 
     pool = Pool()
@@ -105,43 +125,6 @@ def process_one_video_in_computer(
         ffmpeg_caller=ffmpeg_caller,
         is_result_cfr=is_result_cfr
     )
-
-
-'''
-def _apply_interesting_parts_to_audio(
-    interesting_parts: np.array,
-    boring_parts: np.array,
-    ispeed: float,
-    bspeed: float,
-    input_wav_path: str,
-    working_directory_path: str = mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX),
-    ffmpeg_caller: FFMPEGCaller = FFMPEGCaller()
-):
-    def tpath(filename):
-        """
-        returns the absolute path for a file with name filename in folder working_directory_path
-        """
-        return os.path.join(working_directory_path, filename)
-
-    iparts_audio = tpath("interesting_parts")
-    bparts_audio = tpath("boring_parts")
-
-    new_path_parts = []
-    iparts_length, bparts_lenght = 0, 0
-    with Wave_write(iparts_audio) as iaudio, Wave_write(bparts_audio) as baudio,\
-            Wave_read(input_wav_path) as input_wav:
-        iaudio.setparams(input_wav.getparams())
-        baudio.setparams(input_wav.getparams())
-
-        def add_info(iter, info):
-            for elem in iter:
-                return elem, info
-
-        for part, info in collide(add_info(boring_parts, "b"), add_info(interesting_parts, "i")):
-            new_path_parts.append([part, info])
-            copy_parts_of_wav(input_wav, part[0], part[1], baudio if info == "b" else iaudio)
-
-        ffmpeg_caller("")'''
 
 
 def apply_calculated_interesting_to_video(
