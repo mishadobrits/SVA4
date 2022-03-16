@@ -17,7 +17,6 @@ import random
 import sys
 import tempfile
 import wave
-import librosa as librosa
 import numpy as np
 
 from ffmpeg_caller import FFMPEGCaller
@@ -398,6 +397,7 @@ class CropLongSounds(SpeedUpAlgorithm):
         super(CropLongSounds, self).__init__()
 
     def get_interesting_parts(self, video_path: str):
+        import librosa as librosa
         def cdot(a, b):
             if type(a) == type(b) == int:
                 return a * b
