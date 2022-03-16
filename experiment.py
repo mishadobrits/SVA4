@@ -1,129 +1,81 @@
-import math
+import datetime
 import os
 import random
-import logging
-from decimal import getcontext
-from tempfile import gettempdir
 
+import streamlit as st
 import torch
-
-from main import delete_all_sva4_temporary_objects
-import numpy as np
-from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy.video.io.VideoFileClip import VideoFileClip
-
 from settings import Settings
-from some_functions import save_v2_timecodes_to_file, v1timecodes_to_v2timecodes, create_valid_path
-from speed_up import _FakeDebugAlgorithm, AlgOr, CropLongSounds, AlgNot
-
-
-def read(filename):
-    with open(f"tests/{filename}.npy", "rb") as f:
-        abc = np.load(f, allow_pickle=False)
-    with open(f"tests/{filename}.txt", "w") as f:
-        f.write("\n".join(map(str, abc)))
-
-    return abc
-
-
-def debug_and_alg(input_video_path):
-    a, b, c, abc = read(0), read(1), read(2), read("rt")
-    x, y, z, xyz = _FakeDebugAlgorithm(a), _FakeDebugAlgorithm(b), _FakeDebugAlgorithm(c), _FakeDebugAlgorithm(abc)
-
-
-def debug_audio(input_video_path):
-    from ffmpeg_caller import FFMPEGCaller
-    from some_functions import WavSubclip
-    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True)
-    audio_path = "test_audio.wav"
-    ffmpeg(f"-i {input_video_path} {audio_path}")
-    for i in range(1000):
-        start = i  # random.random() * 100
-        end = i + 2  # start + random.random() * 10
-        wav = WavSubclip(audio_path).subclip(start, end).to_soundarray()
-        honest_audio = AudioFileClip(audio_path).subclip(start, end).to_soundarray()
-        print(i, abs(wav - honest_audio).max())
-        # print(wav, honest_audio)
-        # assert (wav == honest_audio).all(), "not equal"
-
-
-def is_bad(a: float):
-    fstr = lambda elem: format(elem * 1000, "f")
-    delta = 10 ** -6 / 240
-    return fstr(a) == fstr(a + delta)
-
-
-
-"""
-Testing process_one_video_in_computer function
-"""
-import sys
-sys.path.append("/content/SVA4")
-
+from speed_up import AlgAnd, VolumeThresholdAlgorithm, SileroVadAlgorithm
 from main import process_one_video_in_computer
-from settings import Settings
-from ffmpeg_caller import FFMPEGCaller
-from speed_up import (
-    VolumeThresholdAlgorithm,
-    WebRtcVADAlgorithm,
-    SileroVadAlgorithm,
-    AlgOr,
-    AlgAnd
-)
+from streamlit.server.server import Server
 
-# """
-def read_v1(v1path="tmp/timecodes.v1"):
-    with open(v1path) as v1file:
-        v1file.readline()
-        v1file.readline()
-        v1 = [list(map(float, line.split(","))) for line in v1file]
-    return v1
+info = Server.get_current()._session_info_by_id
+ident = "_" + list(info.keys())[0] # + str(list(info.values())[0].script_run_count)
+
+st.title("Smart Video Accelerator")
+st.write("Collab link: https://colab.research.google.com/drive/1bUevuplQxkqzDnQOEh0MGtTOc5pFBWGY#scrollTo=TH2tbX-JOe1u")
+st.write("Github link: https://github.com/mishadobrits/SVA4/tree/dev")
+
+try:
+    video = st.file_uploader("Upload a videolecture")
+except Exception as e:
+    st.write(e)
+    video = None
 
 
-def read_v2(v2path="tmp/timecodes.v2"):
-    with open(v2path) as v2file:
-        v2file.readline()
-        v2 = [float(line) for line in v2file]
-    return v2
+directory = "upload_videos"
+os.makedirs(directory, exist_ok=True)
+if video:
+    videoname = os.path.splitext(video.name)[0]
+    videopath = os.path.join(directory, videoname + ident + ".mkv")
+    with open(videopath, "wb") as f:
+        f.write(video.getbuffer())
+    del video
+
+    with st.expander("Parameters"):
+        st.write("'↗' means the higher the value, the stronger acceleration (smaller result duration)\n "
+                 "'↘' means the higher the value, the weaker acceleration (longer result duration)")
+        st.write("↗: From 0 to 1. Parts of the video with volume that smaller then that value will be skipped.")
+        volume_threshold = st.number_input("Volume Threshold", value=0.015, min_value=0.0, max_value=1.0, step=0.001, format="%f")
+        st.write("↗: From 0.15 to 1. Parts of the video were the Silero algorithm returns probability of speech that smaller then that value will be skipped")
+        silero_threshold = st.number_input("Silero Threshold", value=0.45, min_value=0.15, max_value=1.0, step=0.001, format="%f")
+        st.write("↗: From 0 to infinity. Parts of the video with speach will be extended on extend_loud_parts seconds, so that ends of phrases won't be cutten.")
+        extend_loud_parts = st.number_input("Extend loud parts", value=0.25, min_value=0.0)
+        st.write("↘: From 0 to infinity. Parts of the video without speech will be cutten to first max_silent_time seconds for better acceleration.")
+        max_silent_time = st.number_input("Max silent time", value=1.0, min_value=extend_loud_parts)
 
 
-def check_v1_and_v2(v1path="tmp/timecodes.v1", v2path="tmp/timecodes.v2"):
-    v1, v2 = read_v1(v1path), read_v2(v2path)
-    print(sum((elem[1] - elem[0]) / elem[2] for elem in v1))
-    print(v2[-1] / 1000)
+    @st.cache
+    def load_silero_vad():
+        torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                       model='silero_vad',
+                       force_reload=False,
+                       onnx=True)
+    load_silero_vad()
+
+    speedup_algorithm = AlgAnd(
+        VolumeThresholdAlgorithm(volume_threshold, min_quiet_time=extend_loud_parts),
+        SileroVadAlgorithm(silero_threshold),
+    )
+    settings = Settings(max_quiet_time=max_silent_time, quiet_speed=6)
+    output_videopath = os.path.join(directory, "SVA-" + videoname + ident + ".mkv")
+
+    if st.button("Accelerate!"):
+        process_one_video_in_computer(videopath, speedup_algorithm, settings, output_videopath)
+
+        def delete_files():
+            p1, p2 = os.path.abspath(videopath), os.path.abspath(output_videopath)
+            if os.path.exists(p1):
+                os.remove(p1)
+            if os.path.exists(p2):
+                os.remove(p2)
+
+        with open(output_videopath, 'rb') as f:
+            st.download_button(
+                'Download video', f.read(), "SVA-" + videoname + ".mkv",
+                on_click=delete_files
+            )
+        delete_files()
 
 
-"""
 
-save_v2_timecodes_to_file("tmp/timecodes.v2", v1timecodes_to_v2timecodes(read_v1(), 30, 150000))
-check_v1_and_v2()
-#"""
-
-
-# create_valid_path("aaa a")
-# input_video_path = input("write path of input video (/content/input_video.mkv): ")
-input_video_path = r"C:\Users\m\Downloads\Sites-Buffers\ "[:-1] + input("Input filename: ")  # Клименко А В Дифференциальные уравнения 12.11.2021.mp4" # input("Input video path: ") #
-# speedup_algorithm = VolumeThresholdAlgorithm(0.02)  # or
-# speedup_algorithm = WebRtcVADAlgorithm(3) or
-# SileroVadAlgorithm(is_adaptive=True) or
-speedup_algorithm = AlgAnd(
-    VolumeThresholdAlgorithm(0.02),
-    # WebRtcVADAlgorithm(1),
-    SileroVadAlgorithm(),
-    # CropLongSounds(max_lenght_of_one_sound=0.03, threshold=0.9985),  # is_adaptive=True
-)  # or any other option
-
-settings = Settings(quiet_speed=6)
-
-# output_video_path = input("write path of output video (/content/output_video.mkv): ")
-output_video_path = r"C:\Users\m\Downloads\Sites-Buffers\output with spaces.mkv"
-
-process_one_video_in_computer(
-    input_video_path,
-    speedup_algorithm,
-    settings,
-    output_video_path,
-    is_result_cfr=False,
-    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=False, print_command=True),
-)
-# """

@@ -7,3 +7,4 @@ torch==1.10.0
 torchaudio>=0.10.0
 onnxruntime==1.10.0
 librosa>=0.8.1
+soundfile
