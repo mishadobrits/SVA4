@@ -52,6 +52,7 @@ if video:
                        model='silero_vad',
                        force_reload=False,
                        onnx=True)
+        os.system("apt-get install mkvtoolnix")
     load_silero_vad()
 
     speedup_algorithm = AlgAnd(
