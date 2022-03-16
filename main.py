@@ -6,7 +6,7 @@ import itertools
 import os
 import shutil
 from pathlib import Path
-from tempfile import mkdtemp, gettempdir
+from tempfile import gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
