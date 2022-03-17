@@ -10,6 +10,11 @@ from speed_up import AlgAnd, VolumeThresholdAlgorithm, SileroVadAlgorithm
 from main import process_one_video_in_computer
 from streamlit.server.server import Server
 
+import subprocess
+
+pipe = subprocess.run(['mkvmerge', '--help'], stdout=subprocess.PIPE)
+st.write(pipe.stdout)
+
 info = Server.get_current()._session_info_by_id
 ident = "_" + list(info.keys())[0] # + str(list(info.values())[0].script_run_count)
 
@@ -52,7 +57,6 @@ if video:
                        model='silero_vad',
                        force_reload=False,
                        onnx=True)
-        os.system("apt-get install mkvtoolnix")
     load_silero_vad()
 
     speedup_algorithm = AlgAnd(
