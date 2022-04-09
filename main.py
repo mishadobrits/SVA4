@@ -3,8 +3,10 @@ This module provides the main functions of this project - 'process_one_video_fro
 It processes the video in the way README says.
 """
 import itertools
+import json
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from tempfile import gettempdir
 import logging
@@ -251,8 +253,14 @@ def apply_calculated_interesting_to_video(
     v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, fps, nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
+    # print(f"mkvmerge -o {tempory_video_path} --timestamps 0:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
     # logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
-    os.system(f"mkvmerge -o {tempory_video_path} --timestamps 0:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
+    global_tracks_info_str = subprocess.check_output(['mkvmerge', '-J', input_video_path])
+    global_tracks_info_json = json.loads(global_tracks_info_str)
+    for track_info in global_tracks_info_json["tracks"]:
+        if track_info["type"] == "video":
+            video_track_id = track_info["id"]
+    os.system(f"mkvmerge -o {tempory_video_path} --timestamps {video_track_id}:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
 
     if is_result_cfr:
         logger.log(1, "CFR-ing video")
