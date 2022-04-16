@@ -12,13 +12,14 @@ from tempfile import gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
+
+from audio import save_audio_to_wav, read_bytes_from_wave, AUDIO_CHUNK_IN_SECONDS
 from settings import Settings
 from some_functions import (
     v1timecodes_to_v2timecodes,
     save_v2_timecodes_to_file,
-    read_bytes_from_wave,
     ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
-    save_audio_to_wav, AUDIO_CHUNK_IN_SECONDS, get_working_directory_path,
+    get_working_directory_path,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
@@ -104,7 +105,12 @@ def process_one_video_in_computer(
 
     def get_interesting_parts_function(return_dict: dict):
         print("  Splitting audio into boring / interesting parts")
-        return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
+        try:
+            return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise e
 
     input_wav = save_audio_to_wav(new_input_video_path, ffmpeg_preprocess_audio)
     interesting_parts = {}

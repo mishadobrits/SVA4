@@ -10,7 +10,7 @@ from speed_up import (
     WebRtcVADAlgorithm,
     SileroVadAlgorithm,
     AlgOr,
-    AlgAnd
+    AlgAnd, AlgAnd1
 )
 
 
@@ -20,7 +20,7 @@ input_video_path = input("write path of input video: ")
 # speedup_algorithm = WebRtcVADAlgorithm(3) or
 # SileroVadAlgorithm(is_adaptive=True) or
 speedup_algorithm = AlgAnd(
-    VolumeThresholdAlgorithm(0.023, min_quiet_time=0.2),
+    VolumeThresholdAlgorithm(0.015, min_quiet_time=0.2),
     # WebRtcVADAlgorithm(2),
     SileroVadAlgorithm(),
 )  # or any other option
@@ -33,7 +33,7 @@ process_one_video_in_computer(
     input_video_path,
     speedup_algorithm,
     settings,
-    output_video_path,
+    output_video_path ,
     is_result_cfr=False,
     ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True, print_command=True)
 )

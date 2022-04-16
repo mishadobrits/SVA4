@@ -8,20 +8,24 @@ Currently, there are
  'VolumeThresholdAlgorithm(sound_threshold)'
  'WebRtcVADAlgorithm(aggressiveness)'
  'SileroVadAgorithm()'
-
-
+ 'AlgAnd'
+ 'AlgOr'
+ 'AlgNot'
 """
 import math
 import os
 import random
-import sys
 import tempfile
 import wave
 import numpy as np
-
+from typing import List
+from audio import save_audio_to_wav, WavFile, PartsOfAudio, AUDIO_CHUNK_IN_SECONDS
 from ffmpeg_caller import FFMPEGCaller
-from some_functions import str2error_message, save_audio_to_wav, WavSubclip, get_duration, TEMPORARY_DIRECTORY_PREFIX
+from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_PREFIX
 
+
+def do_nothing(*args, **kwargs):
+    pass
 
 def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting_parts):
     begin_sound_indexes = interesting_parts[:, 0]
@@ -53,7 +57,7 @@ class SpeedUpAlgorithm:
         because this method used by main.apply_calculated_interesting_to_video and
         main.process_one_video_in_computer
 
-        :param moviepy_video: VideoClip
+        :param video_path: str
         :return: np.array of interesting parts in usual format
                 (format in look settings.process_interestingpartsarray.__doc__)
         """
@@ -70,10 +74,10 @@ class WavSoundAlgorithm(SpeedUpAlgorithm):
     """
     def get_interesting_parts(self, video_path: str):
         wav_audio_path = save_audio_to_wav(video_path)
-        wav_audio = WavSubclip(wav_audio_path)
+        wav_audio = WavFile(wav_audio_path)
         return self.get_interesting_parts_from_wav(wav_audio)
 
-    def get_interesting_parts_from_wav(self, wav_audio: WavSubclip):
+    def get_interesting_parts_from_wav(self, wav_audio: WavFile, logger_func=do_nothing):
         msg = f"All classes inherited from {__class__} must overload" + \
               " get_interesting_parts_from_wav method"
         raise AttributeError(msg)
@@ -83,11 +87,12 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
     """
     The same as PiecemealBaseAlgorithm but for algorithms, that uses only sound.
     """
-    def __init__(self, chunk_in_seconds: float = 60):
+    def __init__(self, chunk_in_seconds: float = AUDIO_CHUNK_IN_SECONDS):
         self.chunk = chunk_in_seconds
         super(PiecemealWavSoundAlgorithm, self).__init__()
 
-    def get_interesting_parts_from_wav(self, wav_audio):
+    def get_interesting_parts_from_wav(self, wav_audio, logger_func=print):
+        print = logger_func
         interesting_parts = []
         print(f"from {math.ceil(wav_audio.duration / self.chunk)}: ", end="")
         for start in np.arange(0, wav_audio.duration, self.chunk):
@@ -99,9 +104,9 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
             if chunk_interesting_parts.size:
                 interesting_parts.append(start + chunk_interesting_parts)
         print()
-        return np.vstack(interesting_parts)
+        return np.vstack(interesting_parts) if interesting_parts else np.zeros((0, 2))
 
-    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavFile):
         msg = f"All classes inherited from {__class__} must overload" + \
               " get_interesting_parts_from_wav method"
         raise AttributeError(msg)
@@ -130,7 +135,7 @@ class VolumeThresholdAlgorithm(PiecemealWavSoundAlgorithm):
         """:returns sound_threshold: float"""
         return self.sound_threshold
 
-    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavFile):
         sound = np.abs(wav_audio_chunk.to_soundarray())
         sound = sound.max(axis=1).reshape(-1)
         sound = np.hstack([-1, sound, self.sound_threshold + 1, -1])
@@ -165,7 +170,8 @@ class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
     def __init__(self,
                  aggressiveness: int = 1,
                  min_quiet_time: float = 0.25,
-                 frame_duration: int = 30):
+                 frame_duration: int = 30,
+                 chunk_in_seconds: float = 60):
         """
 
         :param aggressiveness: parameter to VAD
@@ -186,9 +192,9 @@ class WebRtcVADAlgorithm(PiecemealWavSoundAlgorithm):
         self.min_quiet_time = min_quiet_time
         self.set_aggressiveness(aggressiveness)
 
-        super(WebRtcVADAlgorithm, self).__init__(chunk_in_seconds=60)
+        super(WebRtcVADAlgorithm, self).__init__(chunk_in_seconds=chunk_in_seconds)
 
-    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavFile):
         from webrtcvad import Vad
 
         array, old_fps = wav_audio_chunk.to_soundarray(), wav_audio_chunk.fps
@@ -235,10 +241,10 @@ class SileroVadAlgorithm(PiecemealWavSoundAlgorithm):
     from this (https://github.com/snakers4/silero-vad) project
     and returns them as interesting parts.
     """
-    def __init__(self, *vad_args, onnx: bool = True, **vad_kwargs):
+    def __init__(self, *vad_args, onnx: bool = True, chunk_in_seconds: int = 60, **vad_kwargs):
         import torch
 
-        super(SileroVadAlgorithm, self).__init__()
+        super(SileroVadAlgorithm, self).__init__(chunk_in_seconds=chunk_in_seconds)
 
         self.model, self.utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                                 model='silero_vad',
@@ -252,7 +258,7 @@ class SileroVadAlgorithm(PiecemealWavSoundAlgorithm):
 
         self.vad_args, self.vad_kwargs = vad_args, vad_kwargs
 
-    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavSubclip):
+    def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavFile):
         import torchaudio
         import torch
         available_rate = 16000
@@ -312,7 +318,69 @@ class AlgNot(SpeedUpAlgorithm):
         return f"(not {self.alg})"
 
 
+class AlgAnd2(SpeedUpAlgorithm):
+    def __init__(self, *algs: List[WavSoundAlgorithm]):
+        self.algs = algs
+
+    def get_interesting_parts(self, video_path: str):
+        duration = get_duration(video_path)
+        parts = [[0, duration]]
+        for alg in self.algs:
+            parts = __class__.get_interesting_parts_only_in_intervals(alg, video_path, parts)
+        return parts
+
+    @staticmethod
+    def get_interesting_parts_only_in_intervals(
+             wavsoundalg: WavSoundAlgorithm,
+             video_path: str,
+             intervals: List[List[float]]
+     ) -> List[List[float]]:
+         wavaudio_path = save_audio_to_wav(video_path)
+         parts_of_audio = PartsOfAudio(WavFile(wavaudio_path), intervals)
+         inter_parts = wavsoundalg.get_interesting_parts_from_wav(parts_of_audio)
+         return np.array(parts_of_audio.convert_from_self_tl(inter_parts))
+
+
 class AlgAnd(SpeedUpAlgorithm):
+    def __init__(self, *args: WavSoundAlgorithm, minimal_lenght_of_inter_part_sec=0.15, logger_func=print):
+        self.args = args
+        self.minimal_lenght_of_inter_part_sec = minimal_lenght_of_inter_part_sec
+        self.print = logger_func
+
+    def get_interesting_parts(self, video_path: str):
+        wavaudio_path = save_audio_to_wav(video_path)
+        audio = WavFile(wavaudio_path)
+        parts = np.array([[0, audio.duration]])
+        for index, alg in enumerate(self.args):
+            remaining_duration = (parts[:, 1] - parts[:, 0]).sum()  #
+            print(f"Applying {str(alg)}\nfrom {math.ceil(remaining_duration / AUDIO_CHUNK_IN_SECONDS)}: ", end="")  #
+            cur_duration = 0  #
+
+            new_parts = []
+            for part in parts:
+                new_parts.append([part[0]])
+                for i in range(math.floor((part[1] - part[0]) / AUDIO_CHUNK_IN_SECONDS)):
+                    border = part[0] + i * AUDIO_CHUNK_IN_SECONDS
+                    new_parts[-1].append(border)
+                    new_parts.append([border])
+                new_parts[-1].append([part[1]])
+            parts = new_parts
+            new_parts = []
+            for part in parts:
+                if part[1] - part[0] < self.minimal_lenght_of_inter_part_sec:
+                    continue
+                new_parts.append(part[0] + alg.get_interesting_parts_from_wav(audio.subclip(*part), logger_func=do_nothing))
+
+                cur_duration += part[1] - part[0]  #
+                if math.floor((cur_duration - (part[1] - part[0])) / AUDIO_CHUNK_IN_SECONDS) < math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS): #
+                    print(math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS), end=", ")  #
+            print()  #
+
+            parts = np.vstack(new_parts)
+        return parts
+
+
+class AlgAnd1(SpeedUpAlgorithm):
     """
     Accepts algorithms as arguments and returns pieces of parts that all algorithms
      select as interesting.
@@ -321,7 +389,7 @@ class AlgAnd(SpeedUpAlgorithm):
 
     """
     def __init__(self, *algorithms):
-        super(AlgAnd, self).__init__()
+        super(__class__, self).__init__()
         self.algs = algorithms
 
     def get_interesting_parts(self, path: str):
@@ -364,10 +432,10 @@ class AlgOr(SpeedUpAlgorithm):
         alg = AlgOr(alg1, alg2, alg3 ... algn)
 
     """
-    def __init__(self, *algorithms):
+    def __init__(self, *algorithms, base_algand=AlgAnd):
         super(AlgOr, self).__init__()
         self.algs = algorithms
-        self.real_algorithm = AlgNot(AlgAnd(*[AlgNot(alg) for alg in algorithms]))
+        self.real_algorithm = AlgNot(base_algand(*[AlgNot(alg) for alg in algorithms]))
 
     def get_interesting_parts(self, video_path: str):
         return self.real_algorithm.get_interesting_parts(video_path)
@@ -377,10 +445,13 @@ class AlgOr(SpeedUpAlgorithm):
         return f"({result})"
 
 
-class _FakeDebugAlgorithm(SpeedUpAlgorithm):
+class SpecifiedParts(SpeedUpAlgorithm):
     def __init__(self, interesting_parts):
-        super(_FakeDebugAlgorithm, self).__init__()
+        super(SpecifiedParts, self).__init__()
         self.interesting_parts = np.array(interesting_parts, dtype="float64")
+
+    def get_interesting_parts_from_wav(self, wavaudio):
+        return np.minimum(self.interesting_parts, wavaudio.duration)
 
     def get_interesting_parts(self, video_path: str):
         duration = 10 ** 10 if not video_path else get_duration(video_path)

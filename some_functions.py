@@ -8,46 +8,12 @@ import itertools
 import math
 import os
 import shutil
-from wave import Wave_read, Wave_write
 from tempfile import gettempdir, mkdtemp
 import numpy as np
-import wavio
 from imageio_ffmpeg import count_frames_and_secs
-from ffmpeg_caller import FFMPEGCaller
 
 
-AUDIO_CHUNK_IN_SECONDS = 60
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
-
-
-class WavSubclip:
-    def __init__(self, path: str, start: float = 0, end: float = 10 ** 10):
-        self.path = path
-        self.start = start
-        with Wave_read(path) as wav_file:
-            self.sample_width = wav_file.getsampwidth()
-            self.nchannels = wav_file.getnchannels()
-            self.fps = wav_file.getframerate()
-            self.duration = wav_file.getnframes() / self.fps
-            self.end = min(end, self.duration)
-
-    def subclip(self, start, end):
-        return WavSubclip(self.path, self.start + start, self.start + end)
-
-    def to_soundarray(self):
-        sample_width = self.sample_width
-        sample_range = wavio._sampwidth_ranges[sample_width]
-        read_bytes = read_bytes_from_wave(Wave_read(self.path), self.start, self.end)
-        array = wavio._wav2array(self.nchannels, sample_width, read_bytes).astype("float64")
-
-        # print(array, array.min(), array.max(), sample_width, sample_range)
-        # breakpoint()
-        array = (array - sample_range[0]) / (sample_range[1] - sample_range[0])
-        # print("array", array,)
-        return 2 * array - 1  # fit to [-1, 1] range
-
-    def read_part(self, start, end):
-        return self.subclip(start, end).to_soundarray()
 
 
 def pairwise(iterable):
@@ -55,24 +21,6 @@ def pairwise(iterable):
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
-
-
-def save_audio_to_wav(input_video_path, ffmpeg_preprocess_audio=""):
-    """
-    Saves videos audio to wav and returns its path
-    :param ffmpeg_preprocess_audio:
-    :param input_video_path:
-    :return: path od audio
-
-    """
-    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True, print_command=True)
-
-    input_video_path = os.path.abspath(input_video_path)
-    filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
-    filepath = os.path.join(gettempdir(), filename)
-
-    ffmpeg(f"-i {input_video_path} -ar 48000 {ffmpeg_preprocess_audio} {filepath}")
-    return filepath
 
 
 def str2error_message(msg):
@@ -84,27 +32,6 @@ def get_working_directory_path(working_directory_path: str) -> str:
     if working_directory_path is None:
         return mkdtemp(prefix=TEMPORARY_DIRECTORY_PREFIX)
     return working_directory_path
-
-
-def read_bytes_from_wave(waveread_obj: Wave_read, start_sec: float, end_sec: float):
-    """
-    Reades bytes from wav file 'waveread_obj' from start_sec up to end_sec.
-
-    :param waveread_obj: Wave_read
-    :param start_sec: float
-    :param end_sec: float
-    :return: rt_bytes: bytes: read bytes
-    """
-    previous_pos, framerate = waveread_obj.tell(), waveread_obj.getframerate()
-
-    start_pos = min(waveread_obj.getnframes(), math.ceil(framerate * start_sec))
-    end_pos = min(waveread_obj.getnframes(), math.ceil(framerate * end_sec))
-
-    waveread_obj.setpos(start_pos)
-    rt_bytes = waveread_obj.readframes(end_pos - start_pos)
-    waveread_obj.setpos(previous_pos)
-
-    return rt_bytes
 
 
 def input_answer(quetsion: str, answers_list: list, attempts: int = 10**10):
@@ -141,6 +68,9 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
         [[start0, end0, fps0], [start1, end1, fps1], ... [start_i, end_i, fps_i]]
          (same as save_timecodes_to_v1_file)
         where start and end in seconds, fps in frames per second
+    :param video_fps: fps you want in output video
+    :param length_of_video: number of frames in output frames (in case it's greater then v1timecodes[-1] * fps.
+    :param default_output_fps: fps in parts not covered py v1timecodes
     :return: v2timecodes: timecodes in v2format:
         [timecode_of_0_frame_in_ms, timecode_of_1st_frame_in_ms, ... timecode_of_nth_frame_in_ms]
     """
@@ -161,7 +91,6 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
         X += 1 / elem[2] * (end_t - start_t) / (end_i - start_i)
         # print((end_i - start_t) / elem[2] - sum(X))
         # end kostil
-
 
         """
         addition = 1 / elem[2] - default_freq
@@ -255,10 +184,6 @@ def create_valid_path(path_with_spaces: str):
     return new_path
 
 
-def get_ffmpeg_filter_of_interesing_parts(settings):
-    pass
-
-
 def get_duration(video_path: str):
     nframes, secs = count_frames_and_secs(video_path)
     return secs
@@ -273,15 +198,9 @@ def collide(*iters):
     was_iterated = True
     while was_iterated:
         was_iterated = False
-        for iter in iters:
+        for it in iters:
             try:
-                yield next(iter)
+                yield next(it)
                 was_iterated = True
             except StopIteration:
                 continue
-
-
-def copy_parts_of_wav(wav_read: Wave_read, start_t: float, end_t: float, wav_write: Wave_write):
-    for start in np.arange(start_t, end_t, AUDIO_CHUNK_IN_SECONDS):
-        end = min(end_t, start + AUDIO_CHUNK_IN_SECONDS)
-        wav_write.writeframes(read_bytes_from_wave(wav_read, start, end))
