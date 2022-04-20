@@ -1,6 +1,7 @@
 from audio import PartsOfAudio, WavFile
-from speed_up import VolumeThresholdAlgorithm, AlgAnd, SileroVadAlgorithm, get_interesting_parts_only_in_intervals, \
+from speed_up import VolumeThresholdAlgorithm, AlgAnd, SileroVadAlgorithm, \
     SpecifiedParts
+
 
 path = r"C:\Users\m\Downloads\Sites-Buffers\part.wav"
 audio = WavFile(path).subclip(60, 65)

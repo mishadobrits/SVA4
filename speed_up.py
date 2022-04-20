@@ -27,6 +27,7 @@ from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_
 def do_nothing(*args, **kwargs):
     pass
 
+
 def _apply_min_quiet_time_to_interesting_parts_array(min_quiet_time, interesting_parts):
     begin_sound_indexes = interesting_parts[:, 0]
     end_sound_indexes = interesting_parts[:, 1]
@@ -309,9 +310,17 @@ class AlgNot(SpeedUpAlgorithm):
 
     def get_interesting_parts(self, video_path: str):
         interesting_parts = self.alg.get_interesting_parts(video_path)
+        return self.reverse(interesting_parts, get_duration(video_path))
+
+    def get_interesting_parts_from_wav(self, wav_audio_chunk: WavFile):
+        interesting_parts = self.alg.get_interesting_parts_from_wav(wav_audio_chunk)
+        return self.reverse(interesting_parts, wav_audio_chunk.duration)
+
+    @staticmethod
+    def reverse(interesting_parts: List[List[int]], duration: float):
         begins_timestamps, ends_timestamps = interesting_parts[:, 0], interesting_parts[:, 1]
         new_begins_timestamps = np.hstack(([0], ends_timestamps))
-        new_ends_timestamps = np.hstack((begins_timestamps, [get_duration(video_path)]))
+        new_ends_timestamps = np.hstack((begins_timestamps, [duration]))
         return np.vstack((new_begins_timestamps, new_ends_timestamps)).transpose((1, 0))
 
     def __str__(self):
@@ -341,7 +350,7 @@ class AlgAnd2(SpeedUpAlgorithm):
          return np.array(parts_of_audio.convert_from_self_tl(inter_parts))
 
 
-class AlgAnd(SpeedUpAlgorithm):
+class AlgAnd0(SpeedUpAlgorithm):
     def __init__(self, *args: WavSoundAlgorithm, minimal_lenght_of_inter_part_sec=0.15, logger_func=print):
         self.args = args
         self.minimal_lenght_of_inter_part_sec = minimal_lenght_of_inter_part_sec
@@ -432,10 +441,10 @@ class AlgOr(SpeedUpAlgorithm):
         alg = AlgOr(alg1, alg2, alg3 ... algn)
 
     """
-    def __init__(self, *algorithms, base_algand=AlgAnd):
+    def __init__(self, *algorithms, fast=True):
         super(AlgOr, self).__init__()
         self.algs = algorithms
-        self.real_algorithm = AlgNot(base_algand(*[AlgNot(alg) for alg in algorithms]))
+        self.real_algorithm = AlgNot(AlgAnd(*[AlgNot(alg) for alg in algorithms], fast=fast))
 
     def get_interesting_parts(self, video_path: str):
         return self.real_algorithm.get_interesting_parts(video_path)
@@ -443,6 +452,18 @@ class AlgOr(SpeedUpAlgorithm):
     def __str__(self):
         result = " or ".join(map(str, self.algs))
         return f"({result})"
+
+
+class RemoveShortParts(SpeedUpAlgorithm):
+    def __init__(self, alg: SpeedUpAlgorithm, min_part_lenght: float=0.15):
+        super(RemoveShortParts, self).__init__()
+        self.alg = alg
+        self.min_part_lenght = min_part_lenght
+
+    def get_interesting_parts(self, video_path: str):
+        parts = self.alg.get_interesting_parts(video_path)
+        parts = parts[parts[:, 1] - parts[:, 0] > self.min_part_lenght, :]
+        return parts
 
 
 class SpecifiedParts(SpeedUpAlgorithm):
@@ -534,3 +555,9 @@ class SubtitlesParts(SpeedUpAlgorithm):
         timecodes[:, 1] += self.after_extend
         timecodes = _apply_min_quiet_time_to_interesting_parts_array(0, timecodes)
         return timecodes
+
+
+def AlgAnd(*algs: SpeedUpAlgorithm, fast=True):
+    if all(isinstance(alg, PiecemealWavSoundAlgorithm) for alg in algs) and fast:
+        return AlgAnd0(*algs)
+    return AlgAnd1(*algs)

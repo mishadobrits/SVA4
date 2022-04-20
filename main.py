@@ -5,6 +5,7 @@ It processes the video in the way README says.
 import itertools
 import json
 import os
+import random
 import shutil
 import subprocess
 from pathlib import Path
@@ -100,19 +101,21 @@ def process_one_video_in_computer(
             '-filter:a "volume=10dB"' Increases volume by 10 dB.
                 Takes ~20 sec to complete for 80m 1GB video.
     """
-    new_input_video_path = create_valid_path(input_video_path)
+    video_path2 = create_valid_path(input_video_path)
+    video_path3 = os.path.join(gettempdir(), str(random.randint(0, 1E10)) + ".mkv")
+    ffmpeg_caller(f" -i {video_path2} -c copy {video_path3}")
     working_directory_path = get_working_directory_path(working_directory_path)
 
     def get_interesting_parts_function(return_dict: dict):
         print("  Splitting audio into boring / interesting parts")
         try:
-            return_dict["ip"] = speedup_algorithm.get_interesting_parts(new_input_video_path)
+            return_dict["ip"] = speedup_algorithm.get_interesting_parts(video_path3)
         except Exception as e:
             import traceback
             traceback.print_exc()
             raise e
 
-    input_wav = save_audio_to_wav(new_input_video_path, ffmpeg_preprocess_audio)
+    input_wav = save_audio_to_wav(video_path3, ffmpeg_preprocess_audio)
     interesting_parts = {}
 
     pool = Pool()
@@ -126,7 +129,7 @@ def process_one_video_in_computer(
     apply_calculated_interesting_to_video(
         interesting_parts,
         settings,
-        new_input_video_path,
+        video_path3,
         output_video_path,
         logger=logger,
         working_directory_path=working_directory_path,

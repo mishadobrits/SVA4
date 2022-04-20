@@ -60,18 +60,21 @@ If you want to process video using a built-in project algorithm.<br>
    * Complex algoritms     
      * `AlgNot(alg)` accepts `alg` as arguments and swap interesting and boring parts.
         For example, `AlgNot(SileroVadAlgorithm())`
-     * `speed_up.AlgAnd(alg1, alg2, alg3, ... algn)` accepts algorithms as arguments
+     * `speed_up.AlgAnd(alg1, alg2, alg3, ... algn, fast=True)` accepts algorithms as arguments
        and returns parts which all algorithms select as interesting parts.
-       For example, 
+       If `fast` is False, the function applies `alg[i]` to the whole video, else the function
+       applies alg_i only to the parts, which was returned by `alg[i - 1]`.
+     * For example, 
        ```
        speedup_algorithm = AlgAnd(
           VolumeThresholdAlgorithm(0.02, min_quiet_time=0.2),
           WebRtcVADAlgorithm(2),
           SileroVadAlgorithm(is_adaptive=True),
+          fast=True,
        )
        ```
-     * `speed_up.AlgOr(alg1, alg2, alg3, ... algn) = AlgNot(speed_up.AlgAnd(AlgNot(alg1), AlgNot(alg2), AlgNot(alg3),
-       ... AlgNot(algn)))` accepts algorithms as argument
+     * `speed_up.AlgOr(alg1, alg2, alg3, ... algn, fast=True) = AlgNot(speed_up.AlgAnd(AlgNot(alg1), AlgNot(alg2), AlgNot(alg3),
+       ... AlgNot(algn)), fast=True)` accepts algorithms as argument
        and returns all parts which at least one algorithm selects as interesting parts.
        For example, 
        ```
