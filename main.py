@@ -102,7 +102,7 @@ def process_one_video_in_computer(
                 Takes ~20 sec to complete for 80m 1GB video.
     """
     video_path2 = create_valid_path(input_video_path)
-    video_path3 = os.path.join(gettempdir(), str(random.randint(0, 1E10)) + ".mkv")
+    video_path3 = os.path.join(gettempdir(), str(random.randint(0, int(1E10))) + ".mkv")
     ffmpeg_caller(f" -i {video_path2} -c copy {video_path3}")
     working_directory_path = get_working_directory_path(working_directory_path)
 
@@ -262,8 +262,6 @@ def apply_calculated_interesting_to_video(
     v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, fps, nframes)
     save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
 
-    # print(f"mkvmerge -o {tempory_video_path} --timestamps 0:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
-    # logger.log(1, f"mkvmerge -o {video_path2} --timestamps 0:{v2timecodes_path} {temp_images_path}")
     global_tracks_info_str = subprocess.check_output(['mkvmerge', '-J', input_video_path])
     global_tracks_info_json = json.loads(global_tracks_info_str)
     for track_info in global_tracks_info_json["tracks"]:
