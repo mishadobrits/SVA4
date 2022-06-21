@@ -8,6 +8,7 @@ import os
 import random
 import shutil
 import subprocess
+import warnings
 from pathlib import Path
 from tempfile import gettempdir
 import logging
@@ -17,13 +18,11 @@ import numpy as np
 from audio import save_audio_to_wav, read_bytes_from_wave, AUDIO_CHUNK_IN_SECONDS
 from settings import Settings
 from some_functions import (
-    v1timecodes_to_v2timecodes,
-    save_v2_timecodes_to_file,
     ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
-    get_working_directory_path,
+    get_working_directory_path, VideoV2Timecodes,
 )
 from ffmpeg_caller import FFMPEGCaller
-from speed_up import SpeedUpAlgorithm
+from speed_up import SpeedUpAlgorithm, SpecifiedParts, AlgAnd
 from multiprocessing.pool import ThreadPool as Pool
 
 
@@ -34,7 +33,7 @@ def prepare_audio(
         ffmpeg_caller: FFMPEGCaller,
 ):
     """
-    Calls ffmpeg to create in working_dirctory boring_audio.wav with speed
+    Calls ffmpeg to create in working_diretory boring_audio.wav with speed
     settings.get_real_loud_speed() and interesting_audio.wav with speed
     settings.get_real_quiet_speed() in parallel.
     Returns absolute pathes of boring_audio.wav, nteresting_audio.wav
@@ -53,9 +52,15 @@ def prepare_audio(
     def get_speeded_audio(input_audio_path, speed, output_filename, ffmpeg_caller):
         if os.path.exists(output_filename):
             return
-        ffmpeg_caller(
-            f"-i {input_audio_path} -vn {ffmpeg_atempo_filter(speed)} {output_filename}"
-        )
+
+        try:
+            ffmpeg_caller(
+                f"-i {input_audio_path} -vn {ffmpeg_atempo_filter(speed)} {output_filename}"
+            )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise e
 
     pool = Pool()
     pool.apply_async(get_speeded_audio, [input_audio_path, boring_speed, boring_audio_path, ffmpeg_caller])
@@ -66,6 +71,81 @@ def prepare_audio(
 
 
 def process_one_video_in_computer(
+        input_video_path: str,
+        speedup_algorithm: SpeedUpAlgorithm,
+        settings: Settings,
+        output_video_path: str,
+        is_result_cfr: bool = False,
+        logger: logging.Logger = logging.getLogger("process_one_video_in_computer"),
+        working_directory_path=None,
+        ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
+        ffmpeg_preprocess_audio: str = "-filter:a dynaudnorm",
+        audiocodec: str = "flac",
+        videochunk_sec: float = 60 * 10,
+):
+    overwrite_output_force = ffmpeg_caller.get_overwrite_force()
+    if os.path.exists(output_video_path) and overwrite_output_force is None:
+        msg = "Output file is already exists and ffmpeg_caller.overwrite_force is None."
+        msg += " Overwrite it?"
+        answer = input_answer(msg, ["y", "Y", "n", "N"])
+        overwrite_output_force = answer.lower() == "y"
+        ffmpeg_caller.set_overwrite_force(overwrite_output_force)
+
+    working_directory_path = get_working_directory_path(working_directory_path)
+    video_with_wav_auido = os.path.join(
+        working_directory_path, TEMPORARY_DIRECTORY_PREFIX + "video_with_wavaudio.mkv"
+    )
+
+    duration = get_duration(input_video_path)
+    out_pathes = []
+    for start in np.arange(0, duration, videochunk_sec):
+        end = min(start + videochunk_sec, duration)
+        name = f"{round(start, 2)}-{round(end, 2)}-{random.randint(0, 10**10)}"
+        name = TEMPORARY_DIRECTORY_PREFIX + name
+
+        in_filepath = os.path.join(working_directory_path, name + "-inpfile.mkv")
+        ffmpeg_caller(f'-i "{input_video_path}" -c copy -ss {start} -to {end} "{in_filepath}"')
+
+        out_filepath = os.path.join(working_directory_path, name + "-outfile.mkv")
+        out_pathes.append(out_filepath)
+
+        folder_filepath = os.path.join(working_directory_path, name + "-folder")
+        os.mkdir(folder_filepath)
+
+        new_logger = logger.getChild(f"{round(start, 2)}-{round(end, 2)}")
+
+        process_one_videochunk_in_computer(
+            in_filepath,
+            speedup_algorithm,
+            settings,
+            out_filepath,
+            working_directory_path=folder_filepath,
+            is_result_cfr=is_result_cfr,
+            logger=new_logger,
+            ffmpeg_preprocess_audio=ffmpeg_preprocess_audio,
+            ffmpeg_caller=ffmpeg_caller,
+        )
+
+    if not output_video_path.endswith(".mkv"):
+        output_video_path += ".mkv"
+        warnings.warn("output_video_path must end with '.mkv'")
+
+    args = ["mkvmerge", "-o", video_with_wav_auido]
+    for elem in out_pathes:
+        args.append(elem)
+        args.append("+")
+    args.pop()
+
+    subprocess.call(args)
+    if audiocodec != "pcm_s16le":
+        print(f'-i "{video_with_wav_auido}" -c:v copy -acodec {audiocodec} "{output_video_path}"')
+        ffmpeg_caller(f'-i "{video_with_wav_auido}" -c:v copy -acodec {audiocodec} "{output_video_path}"')
+    else:
+        shutil.move(video_with_wav_auido, output_video_path)
+    delete_all_sva4_temporary_objects()
+
+
+def process_one_videochunk_in_computer(
     input_video_path: str,
     speedup_algorithm: SpeedUpAlgorithm,
     settings: Settings,
@@ -75,6 +155,7 @@ def process_one_video_in_computer(
     working_directory_path=None,
     ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
     ffmpeg_preprocess_audio: str = "-filter:a dynaudnorm",
+
 ):
     """
     This function processes video (
@@ -102,8 +183,8 @@ def process_one_video_in_computer(
                 Takes ~20 sec to complete for 80m 1GB video.
     """
     video_path2 = create_valid_path(input_video_path)
-    video_path3 = os.path.join(gettempdir(), str(random.randint(0, int(1E10))) + ".mkv")
-    ffmpeg_caller(f" -i {video_path2} -c copy {video_path3}")
+    video_path3 = os.path.join(gettempdir(), TEMPORARY_DIRECTORY_PREFIX + str(random.randint(0, int(1E10))) + ".mkv")
+    ffmpeg_caller(f"-i {video_path2} -c copy {video_path3}")
     working_directory_path = get_working_directory_path(working_directory_path)
 
     def get_interesting_parts_function(return_dict: dict):
@@ -189,12 +270,7 @@ def apply_calculated_interesting_to_video(
         logger.log(1, f"Output path changed to {output_video_path}")
 
     ffmpeg = ffmpeg_caller
-    overwrite_output_force = ffmpeg_caller.get_overwrite_force()
-    if os.path.exists(output_video_path) and overwrite_output_force is None:
-        msg = "Output file is already exists and ffmpeg_caller.overwrite_force is None."
-        msg += " Overwrite it?"
-        answer = input_answer(msg, ["y", "Y", "n", "N"])
-        overwrite_output_force = answer.lower() == "y"
+    overwrite_output_force = True
     if os.path.exists(output_video_path) and not overwrite_output_force:
         logger.log(1, f"File {output_video_path} is already exists and overwrite_output_force = False")
         logger.log(1, "Quiting")
@@ -213,15 +289,11 @@ def apply_calculated_interesting_to_video(
         shutil.copyfile(input_video_path, new_video_path)
         input_video_path = new_video_path
 
-    nframes, duration = get_nframes(input_video_path), get_duration(input_video_path)
-    fps = nframes / duration
+    nframes = get_nframes(input_video_path)
 
     interesting_parts, boring_parts = settings.process_interestingpartsarray(interesting_parts)
-
-    interesting_parts[:2] = (interesting_parts[:2] * fps).astype(int) / fps
-    boring_parts[:2] = (boring_parts[:2] * fps).astype(int) / fps
-    interesting_parts[:2] = np.minimum(int(fps * duration - 1), interesting_parts[:2])
-    boring_parts[:2] = np.minimum(int(fps * duration - 1), boring_parts[:2])
+    interesting_parts[:2] = np.minimum(nframes - 1, interesting_parts[:2])
+    boring_parts[:2] = np.minimum(nframes - 1, boring_parts[:2])
 
     boring_parts = np.hstack(
         [boring_parts, settings.get_real_quiet_speed() * np.ones((len(boring_parts), 1))]
@@ -233,34 +305,43 @@ def apply_calculated_interesting_to_video(
     boring_audio_path, interesting_audio_path = prepare_audio(
         input_wav, settings, working_directory_path, ffmpeg_caller
     )
-    final_audio_path = tpath("final_audio.flac")
-    temp_final_audio_path = tpath("temp_audio.wav")
+    final_audio_path = tpath("temp_audio.wav")
 
-    v1timecodes = []
+    v1timecodes = [[0, 0, 1]]
+    v2timecodes = VideoV2Timecodes(input_video_path, working_directory=working_directory_path)
     with Wave_read(boring_audio_path) as boring_audio,\
             Wave_read(interesting_audio_path) as interesting_audio,\
-            Wave_write(temp_final_audio_path) as temp_audio:
+            Wave_write(final_audio_path) as temp_audio:
         temp_audio.setparams(boring_audio.getparams())
         parts_iterator = itertools.zip_longest(boring_parts, interesting_parts)
-
+        cur_time = 0
         for boring_and_interesting_part in parts_iterator:
             parts_with_file = zip([boring_audio, interesting_audio], boring_and_interesting_part)
             for file, part in parts_with_file:
                 if part is None:
                     continue
-                v1timecodes.append([part[0], part[1], part[2] * fps])
-                part[0], part[1] = part[0] / part[2], part[1] / part[2]
 
-                for start in np.arange(part[0], part[1], AUDIO_CHUNK_IN_SECONDS):
-                    end = min(part[1], start + AUDIO_CHUNK_IN_SECONDS)
+                start_frame = v2timecodes.get_frame_number(part[0])
+                end_frame = v2timecodes.get_frame_number(part[1])
+                speed = part[2]
+                start_sec, end_sec = v2timecodes[start_frame] / 1000, v2timecodes[end_frame] / 1000
+                cur_time += (end_sec - start_sec) / speed
+                v1timecodes.append([v1timecodes[-1][1], start_frame, 10 ** 7])
+                v1timecodes.append([start_frame, end_frame, part[2]])
+
+                for start in np.arange(start_sec / speed, end_sec / speed, AUDIO_CHUNK_IN_SECONDS):
+                    end = min(end_sec / speed, start + AUDIO_CHUNK_IN_SECONDS)
                     temp_audio.writeframes(read_bytes_from_wave(file, start, end))
 
-    ffmpeg(f"-i {temp_final_audio_path} {final_audio_path}")
+        v1timecodes.append([end_frame, len(v2timecodes), 10 ** 7])
+        # print(cur_time, temp_audio.getnframes() / temp_audio.getframerate())
+
     tempory_video_path = tpath("tempory_video.mkv")
 
     v2timecodes_path, video_path2 = tpath("timecodes.v2"), tpath("v2video.mkv")
-    v2timecodes = v1timecodes_to_v2timecodes(v1timecodes, fps, nframes)
-    save_v2_timecodes_to_file(v2timecodes_path, v2timecodes)
+    v2timecodes.apply_v1_timecodes(v1timecodes)
+    # print(v2timecodes[-1] / 1000)
+    v2timecodes.save(v2timecodes_path)
 
     global_tracks_info_str = subprocess.check_output(['mkvmerge', '-J', input_video_path])
     global_tracks_info_json = json.loads(global_tracks_info_str)
@@ -281,10 +362,10 @@ def apply_calculated_interesting_to_video(
         # program quits earlier
     shutil.move(tempory_video_path, output_video_path)
 
-    delete_all_sva4_temporary_objects()
+    # delete_all_sva4_temporary_objects(working_directory_path)
 
 
-def delete_all_sva4_temporary_objects():
+def delete_all_sva4_temporary_objects(path=gettempdir()):
     """
     When process_one_video_in_computer or apply_calculated_interesting_to_video
     creates temporary directory or temporary file its name starts with
@@ -294,12 +375,15 @@ def delete_all_sva4_temporary_objects():
     marked with prefix TEMPORARY_DIRECTORY_PREFIX
     :return: None
     """
-    temp_dirs = [f for f in os.scandir(gettempdir()) if (f.is_dir() or f.is_file())]
+    temp_dirs = [f for f in os.scandir(path) if (f.is_dir() or f.is_file())]
     sva4_temp_dirs = [f for f in temp_dirs if f.name.startswith(TEMPORARY_DIRECTORY_PREFIX)]
     for temp_path in sva4_temp_dirs:
         full_path = os.path.join(gettempdir(), temp_path.path)
         print(f"Deleting {full_path}")
-        if temp_path.is_dir():
-            shutil.rmtree(full_path)
-        elif temp_path.is_file():
-            os.remove(full_path)
+        try:
+            if temp_path.is_dir():
+                shutil.rmtree(full_path)
+            elif temp_path.is_file():
+                os.remove(full_path)
+        except Exception as e:
+            print(f"Cannot delete {full_path} due to error {e}")

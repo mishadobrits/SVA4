@@ -59,7 +59,6 @@ class Settings:
         quiet_speed - speed of quiet parts of video/audio.
         global_speed - multiplies loud_speed and quiet_speed.
         max_quiet_time - in every boring video piece, the program skips part starting from max_quiet_time seconds.
-        sound_threshold - a threshold between loud sound and quiet sound.
 
         # todo All parameter starting from here are not supported by video processing
 
@@ -228,5 +227,4 @@ class Settings:
             boring_parts_beginnings[0] + self.get_max_quiet_time(),
         )
         boring_parts = np.vstack([boring_parts_beginnings, boring_parts_ends])
-
         return interesting_parts, boring_parts.transpose((1, 0))

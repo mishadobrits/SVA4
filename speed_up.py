@@ -19,7 +19,7 @@ import tempfile
 import wave
 import numpy as np
 from typing import List
-from audio import save_audio_to_wav, WavFile, PartsOfAudio, AUDIO_CHUNK_IN_SECONDS
+from audio import save_audio_to_wav, WavFile, AUDIO_CHUNK_IN_SECONDS, PartsOfAudio
 from ffmpeg_caller import FFMPEGCaller
 from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_PREFIX
 
@@ -97,10 +97,10 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
         interesting_parts = []
         print(f"from {math.ceil(wav_audio.duration / self.chunk)}: ", end="")
         for start in np.arange(0, wav_audio.duration, self.chunk):
-            print(round(start / self.chunk), end=", ")
             end = min(start + self.chunk, wav_audio.duration)
-            wav_part = wav_audio.subclip(start, end)
+            print(round(start / self.chunk), end=", ")
 
+            wav_part = wav_audio.subclip(start, end)
             chunk_interesting_parts = np.array(self.get_interesting_parts_from_wav_part(wav_part))
             if chunk_interesting_parts.size:
                 interesting_parts.append(start + chunk_interesting_parts)
@@ -372,7 +372,7 @@ class AlgAnd0(SpeedUpAlgorithm):
                     border = part[0] + i * AUDIO_CHUNK_IN_SECONDS
                     new_parts[-1].append(border)
                     new_parts.append([border])
-                new_parts[-1].append([part[1]])
+                new_parts[-1].append(part[1])
             parts = new_parts
             new_parts = []
             for part in parts:
@@ -506,8 +506,6 @@ class CropLongSounds(SpeedUpAlgorithm):
         with wave.open(temporary_file_name) as input_audio:
             duration = input_audio.getnframes() / input_audio.getframerate()
             for i in np.arange(0, duration - self.step, self.step):
-                if random.random() < 0.01:
-                    print(i)
                 sound, rate = librosa.load(temporary_file_name, offset=i, duration=self.step)
                 prev_spec = spec
                 spec = librosa.feature.mfcc(sound, rate)
@@ -536,7 +534,6 @@ class SubtitlesParts(SpeedUpAlgorithm):
         ffmpeg_caller(f"-i {video_path} -map 0:s:0 {temp_file_name}")
         with open(temp_file_name, "r") as f:
             subtitles = f.readlines()
-            print(subtitles[:10])
 
         timecodes_strings = subtitles[1::4]
 

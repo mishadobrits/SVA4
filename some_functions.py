@@ -5,15 +5,57 @@ I moved them to a separate file because all modules use these functions,
 """
 import hashlib
 import itertools
+import json
 import math
 import os
 import shutil
+import subprocess
 from tempfile import gettempdir, mkdtemp
 import numpy as np
 from imageio_ffmpeg import count_frames_and_secs
 
 
 TEMPORARY_DIRECTORY_PREFIX = "SVA4_"
+
+
+class VideoV2Timecodes:
+    def __init__(self, path, working_directory):
+        global_tracks_info_str = subprocess.check_output(['mkvmerge', '-J', path])
+        global_tracks_info_json = json.loads(global_tracks_info_str)
+        for track_info in global_tracks_info_json["tracks"]:
+            if track_info["type"] == "video":
+                self.video_track_id = track_info["id"]
+
+        timecodes_v2_path = os.path.join(working_directory, f"timecodes {str(hash(path))[:5]}.v2")
+        subprocess.call(["mkvextract", path, "timestamps_v2", f"{self.video_track_id}:{timecodes_v2_path}"])
+        with open(timecodes_v2_path) as f:
+            f.readline()
+            timecodes_v2 = np.array([float(line) for line in f])
+
+        self.timecodes_v2 = timecodes_v2
+        self.timecodes_v2[0] = 0
+        self.diff_timecodes = timecodes_v2[1:] - timecodes_v2[:-1]
+
+    def __getitem__(self, item):
+        return self.timecodes_v2[item]
+
+    def __len__(self):
+        return len(self.timecodes_v2)
+
+    def get_frame_number(self, time_sec):
+        return np.searchsorted(self.timecodes_v2, time_sec * 1000, side="right") - 1
+
+    def apply_v1_timecodes(self, v1_timecodes):
+        for start_n, end_n, speed in v1_timecodes:
+            self.diff_timecodes[start_n: end_n] *= 1 / speed
+        self.diff_timecodes = np.maximum(self.diff_timecodes, 10 ** -6)
+        self.timecodes_v2 = np.hstack(([0], np.cumsum(self.diff_timecodes)))
+
+    def save(self, filepath):
+        with open(filepath, "w") as f:
+            f.write("# timestamp format v2\n")
+            f.write("\n".join(list(map(lambda x: "{:.8f}".format(x), self.timecodes_v2))))
+
 
 
 def pairwise(iterable):
@@ -194,13 +236,3 @@ def get_nframes(video_path: str):
     return nframes
 
 
-def collide(*iters):
-    was_iterated = True
-    while was_iterated:
-        was_iterated = False
-        for it in iters:
-            try:
-                yield next(it)
-                was_iterated = True
-            except StopIteration:
-                continue

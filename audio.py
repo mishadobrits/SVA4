@@ -2,6 +2,7 @@ import bisect
 import itertools
 import math
 import os
+import traceback
 from tempfile import gettempdir
 from wave import Wave_read
 import numpy as np
@@ -24,19 +25,20 @@ class Audio:
 
 
 class WavFile(Audio):
-    def __init__(self, path: str):
+    def __init__(self, path: str, actual_duration: float = None):
         self.path = path
         with Wave_read(path) as wav_file:
             self.sample_width = wav_file.getsampwidth()
             self.nchannels = wav_file.getnchannels()
             self.fps = wav_file.getframerate()
             self.duration = wav_file.getnframes() / self.fps
+        self.k = actual_duration / self.duration if actual_duration else 1
 
     def to_soundarray(self, start: float = 0, end: float = None) -> np.array:
         end = end if end else self.duration
         sample_width = self.sample_width
         sample_range = wavio._sampwidth_ranges[sample_width]
-        read_bytes = read_bytes_from_wave(Wave_read(self.path), start, end)
+        read_bytes = read_bytes_from_wave(Wave_read(self.path), start / self.k, end / self.k)
         array = wavio._wav2array(self.nchannels, sample_width, read_bytes).astype("float64")
 
         # breakpoint()
@@ -116,7 +118,7 @@ def save_audio_to_wav(input_video_path, ffmpeg_preprocess_audio=""):
     if os.path.exists(filepath):
         return filepath
 
-    ffmpeg(f"-i {input_video_path} -ar 48000 {ffmpeg_preprocess_audio} {filepath}")
+    ffmpeg(f'-i "{input_video_path}" -ar 48000 {ffmpeg_preprocess_audio} "{filepath}"')
     return filepath
 
 
@@ -131,8 +133,8 @@ def read_bytes_from_wave(waveread_obj: Wave_read, start_sec: float, end_sec: flo
     """
     previous_pos, framerate = waveread_obj.tell(), waveread_obj.getframerate()
 
-    start_pos = min(waveread_obj.getnframes(), math.ceil(framerate * start_sec))
-    end_pos = min(waveread_obj.getnframes(), math.ceil(framerate * end_sec))
+    start_pos = min(waveread_obj.getnframes(), round(framerate * start_sec))
+    end_pos = min(waveread_obj.getnframes(), round(framerate * end_sec))
 
     waveread_obj.setpos(start_pos)
     rt_bytes = waveread_obj.readframes(end_pos - start_pos)
