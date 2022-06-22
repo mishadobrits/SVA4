@@ -13,7 +13,6 @@ from speed_up import (
     AlgAnd, AlgAnd1, RemoveShortParts, AlgNot
 )
 
-
 input_video_path = input("Type the path of an input video: ")
 
 # speedup_algorithm = VolumeThresholdAlgorithm(0.02)  # or
@@ -37,4 +36,5 @@ process_one_video_in_computer(
     output_video_path,
     is_result_cfr=False,
     ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True, print_command=True),
+    # audiocodec="pcm_s16le",
 )

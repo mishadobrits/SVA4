@@ -66,13 +66,12 @@ class FFMPEGCaller:
         return self.overwrite_force
 
     def __call__(self, command):
-        if os.path.exists(list(command.split())[-1]):
-            if self.overwrite_force:
-                command = "-y " + command
-            elif type(self.overwrite_force) == bool:
-                command = "-n " + command
-            else:  # self.overwrite_force -is None
-                pass
+        if self.overwrite_force:
+            command = "-y " + command
+        elif type(self.overwrite_force) == bool:
+            command = "-n " + command
+        else:  # self.overwrite_force -is None
+            pass
 
         command = PATH_TO_FFMPEG_EXE + " " + command
         if self.hide_output:

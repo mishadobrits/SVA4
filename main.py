@@ -83,6 +83,10 @@ def process_one_video_in_computer(
         audiocodec: str = "flac",
         videochunk_sec: float = 60 * 10,
 ):
+    if not output_video_path.endswith(".mkv"):
+        output_video_path += ".mkv"
+        warnings.warn("output_video_path must end with '.mkv'. Adding '.mkv' to the end of output_video_path")
+
     overwrite_output_force = ffmpeg_caller.get_overwrite_force()
     if os.path.exists(output_video_path) and overwrite_output_force is None:
         msg = "Output file is already exists and ffmpeg_caller.overwrite_force is None."
@@ -91,10 +95,14 @@ def process_one_video_in_computer(
         overwrite_output_force = answer.lower() == "y"
         ffmpeg_caller.set_overwrite_force(overwrite_output_force)
 
+    def tpath(filename):
+        return os.path.join(
+            working_directory_path, TEMPORARY_DIRECTORY_PREFIX + filename
+        )
+
     working_directory_path = get_working_directory_path(working_directory_path)
-    video_with_wav_auido = os.path.join(
-        working_directory_path, TEMPORARY_DIRECTORY_PREFIX + "video_with_wavaudio.mkv"
-    )
+    videotrack_path = tpath("videotrack.mkv")
+    wav_audio_path, acodec_audio_path = tpath("wav_audio.mkv"), tpath("acodec_audio.mkv")
 
     duration = get_duration(input_video_path)
     out_pathes = []
@@ -126,22 +134,23 @@ def process_one_video_in_computer(
             ffmpeg_caller=ffmpeg_caller,
         )
 
-    if not output_video_path.endswith(".mkv"):
-        output_video_path += ".mkv"
-        warnings.warn("output_video_path must end with '.mkv'")
-
-    args = ["mkvmerge", "-o", video_with_wav_auido]
+    videoargs = ["mkvmerge", "-o", videotrack_path]
+    audioargs = ["mkvmerge", "-o", wav_audio_path]
     for elem in out_pathes:
-        args.append(elem)
-        args.append("+")
-    args.pop()
+        videoargs += ["-A", elem, "+"]
+        audioargs += ["-D", elem, "+"]
+    videoargs.pop()
+    audioargs.pop()
 
-    subprocess.call(args)
+    subprocess.call(videoargs)
+    subprocess.call(audioargs)
+
     if audiocodec != "pcm_s16le":
-        print(f'-i "{video_with_wav_auido}" -c:v copy -acodec {audiocodec} "{output_video_path}"')
-        ffmpeg_caller(f'-i "{video_with_wav_auido}" -c:v copy -acodec {audiocodec} "{output_video_path}"')
+        ffmpeg_caller(f'-i "{wav_audio_path}" -acodec {audiocodec} "{acodec_audio_path}"')
     else:
-        shutil.move(video_with_wav_auido, output_video_path)
+        shutil.move(wav_audio_path, acodec_audio_path)
+
+    ffmpeg_caller(f'-i "{acodec_audio_path}" -i "{videotrack_path}" -c:a copy -c:v copy "{output_video_path}"')
     delete_all_sva4_temporary_objects()
 
 

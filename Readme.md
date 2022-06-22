@@ -22,7 +22,7 @@ So the progam splits the video <br>
 Of course the result of this program isn't ideal, like in editing tutorial, but it is much better, for no effort.
 
 # How to use it?
-The easiest way is to use it - [google.collab](https://colab.research.google.com/drive/1mM0Tz2pYrzbn1e4r0NzBUIneJVWeZZrA) <br>
+The easiest way is to use it - [on google.collab](https://colab.research.google.com/drive/1mM0Tz2pYrzbn1e4r0NzBUIneJVWeZZrA) <br>
 But you can use it locally
 1. Download the mkvmerge from the official website https://mkvtoolnix.download/.
 2. Make mkvmerge seen from the command line.
