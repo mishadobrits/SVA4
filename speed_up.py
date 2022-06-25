@@ -13,15 +13,19 @@ Currently, there are
  'AlgNot'
 """
 import math
-import os
+import os, sys
 import tempfile
 import wave
 import numpy as np
 from typing import List
-from tqdm.auto import tqdm
+if 'google.colab' in sys.modules:
+    tqdm = lambda x, *args, **kwargs: x
+else:
+    from tqdm.auto import tqdm
 from audio import save_audio_to_wav, WavFile, AUDIO_CHUNK_IN_SECONDS, PartsOfAudio
 from ffmpeg_caller import FFMPEGCaller
 from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_PREFIX
+
 
 
 def do_nothing(*args, **kwargs):
@@ -264,8 +268,7 @@ class SileroVadAlgorithm(PiecemealWavSoundAlgorithm):
         sound = torch.tensor(sound, dtype=torch.float32)
 
         transform = torchaudio.transforms.Resample(orig_freq=wav_audio_chunk.fps,
-                                                   new_freq=available_rate,
-                                                   dtype=sound.dtype)
+                                                   new_freq=available_rate)
         sound = transform(sound)   # https://github.com/snakers4/silero-vad/blob/76687cbe25ffdf992ad824a36bfe73f6ae1afe72/utils_vad.py#L86
 
         dict_of_interesting_parts = self.get_speech_timestamps(
