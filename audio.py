@@ -104,21 +104,20 @@ class PartsOfAudio(Audio):
         return np.vstack([self.audio.to_soundarray(*interv) for interv in intervals])
 
 
-def save_audio_to_wav(input_video_path, ffmpeg_preprocess_audio=""):
+def save_audio_to_wav(input_video_path, ffmpeg_preprocess_audio="", ffmpeg_caller=FFMPEGCaller(overwrite_force=False, hide_output=True, print_command=True)):
     """
     Saves videos audio to wav and returns its path
     :param ffmpeg_preprocess_audio:
     :param input_video_path:
     :return: path od audio
     """
-    ffmpeg = FFMPEGCaller(overwrite_force=False, hide_output=True, print_command=True)
     input_video_path = os.path.abspath(input_video_path)
     filename = TEMPORARY_DIRECTORY_PREFIX + str(hash(input_video_path)) + ".wav"
     filepath = os.path.join(gettempdir(), filename)
     if os.path.exists(filepath):
         return filepath
 
-    ffmpeg(f'-i "{input_video_path}" -ar 48000 {ffmpeg_preprocess_audio} "{filepath}"')
+    ffmpeg_caller(f'-i "{input_video_path}" -ar 48000 {ffmpeg_preprocess_audio} "{filepath}"')
     return filepath
 
 

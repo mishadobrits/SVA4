@@ -27,14 +27,18 @@ class VideoV2Timecodes:
                 self.video_track_id = track_info["id"]
 
         timecodes_v2_path = os.path.join(working_directory, f"timecodes {str(hash(path))[:5]}.v2")
-        subprocess.call(["mkvextract", path, "timestamps_v2", f"{self.video_track_id}:{timecodes_v2_path}"])
+        subprocess.call(["mkvextract", path, "timestamps_v2", f"{self.video_track_id}:{timecodes_v2_path}"], stdout=subprocess.DEVNULL)
         with open(timecodes_v2_path) as f:
             f.readline()
             timecodes_v2 = np.array([float(line) for line in f])
 
         self.timecodes_v2 = timecodes_v2
-        self.timecodes_v2[0] = 0
+        if self.timecodes_v2.size:
+            self.timecodes_v2[0] = 0
+        else:
+            self.timecodes_v2 = np.array([0])
         self.diff_timecodes = timecodes_v2[1:] - timecodes_v2[:-1]
+        # print(1, self.timecodes_v2[:10], self.diff_timecodes[:10])
 
     def __getitem__(self, item):
         return self.timecodes_v2[item]
@@ -50,6 +54,8 @@ class VideoV2Timecodes:
             self.diff_timecodes[start_n: end_n] *= 1 / speed
         self.diff_timecodes = np.maximum(self.diff_timecodes, 10 ** -6)
         self.timecodes_v2 = np.hstack(([0], np.cumsum(self.diff_timecodes)))
+        # print(2, self.timecodes_v2[:10], self.diff_timecodes[:10])
+        # self.timecodes_v2 = np.cumsum(self.diff_timecodes)
 
     def save(self, filepath):
         with open(filepath, "w") as f:
@@ -129,22 +135,8 @@ def v1timecodes_to_v2timecodes(v1timecodes, video_fps, length_of_video, default_
         X = time_between_neighbour_frames[start_i: end_i]
         if not X.size:
             continue
-            # print(start_t, end_t, start_i, end_i)
-        X += 1 / elem[2] * (end_t - start_t) / (end_i - start_i)
-        # print((end_i - start_t) / elem[2] - sum(X))
-        # end kostil
 
-        """
-        addition = 1 / elem[2] - default_freq
-        # print(start_t, end_t, addition, ":")
-        ceil_start_t, floor_end_t = math.ceil(start_t), math.floor(end_t)
-        # print(f"  [{ceil_start_t}-{floor_end_t}] += {addition}")
-        # print(f"  [{ceil_start_t - 1}] += {addition} * {(ceil_start_t - start_t)}")
-        # print(f"  [{floor_end_t}] += {addition} * {(end_t - floor_end_t)}")
-        time_between_neighbour_frames[ceil_start_t: floor_end_t] += addition
-        time_between_neighbour_frames[ceil_start_t - 1] += addition * (ceil_start_t - start_t)
-        time_between_neighbour_frames[floor_end_t] += addition * (end_t - floor_end_t)
-        # """
+        X += 1 / elem[2] * (end_t - start_t) / (end_i - start_i)
 
     timecodes = cumsum(time_between_neighbour_frames)
     return timecodes

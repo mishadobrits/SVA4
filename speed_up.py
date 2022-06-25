@@ -14,11 +14,11 @@ Currently, there are
 """
 import math
 import os
-import random
 import tempfile
 import wave
 import numpy as np
 from typing import List
+from tqdm.auto import tqdm
 from audio import save_audio_to_wav, WavFile, AUDIO_CHUNK_IN_SECONDS, PartsOfAudio
 from ffmpeg_caller import FFMPEGCaller
 from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_PREFIX
@@ -78,7 +78,7 @@ class WavSoundAlgorithm(SpeedUpAlgorithm):
         wav_audio = WavFile(wav_audio_path)
         return self.get_interesting_parts_from_wav(wav_audio)
 
-    def get_interesting_parts_from_wav(self, wav_audio: WavFile, logger_func=do_nothing):
+    def get_interesting_parts_from_wav(self, wav_audio: WavFile):
         msg = f"All classes inherited from {__class__} must overload" + \
               " get_interesting_parts_from_wav method"
         raise AttributeError(msg)
@@ -92,19 +92,16 @@ class PiecemealWavSoundAlgorithm(WavSoundAlgorithm):
         self.chunk = chunk_in_seconds
         super(PiecemealWavSoundAlgorithm, self).__init__()
 
-    def get_interesting_parts_from_wav(self, wav_audio, logger_func=print):
-        print = logger_func
+    def get_interesting_parts_from_wav(self, wav_audio):
         interesting_parts = []
-        print(f"from {math.ceil(wav_audio.duration / self.chunk)}: ", end="")
-        for start in np.arange(0, wav_audio.duration, self.chunk):
+        for start in tqdm(np.arange(0, wav_audio.duration, self.chunk), leave=False, desc=str(self)):
             end = min(start + self.chunk, wav_audio.duration)
-            print(round(start / self.chunk), end=", ")
 
             wav_part = wav_audio.subclip(start, end)
             chunk_interesting_parts = np.array(self.get_interesting_parts_from_wav_part(wav_part))
             if chunk_interesting_parts.size:
                 interesting_parts.append(start + chunk_interesting_parts)
-        print()
+
         return np.vstack(interesting_parts) if interesting_parts else np.zeros((0, 2))
 
     def get_interesting_parts_from_wav_part(self, wav_audio_chunk: WavFile):
@@ -361,8 +358,7 @@ class AlgAnd0(SpeedUpAlgorithm):
         audio = WavFile(wavaudio_path)
         parts = np.array([[0, audio.duration]])
         for index, alg in enumerate(self.args):
-            remaining_duration = (parts[:, 1] - parts[:, 0]).sum()  #
-            print(f"Applying {str(alg)}\nfrom {math.ceil(remaining_duration / AUDIO_CHUNK_IN_SECONDS)}: ", end="")  #
+            # print(f"Applying {str(alg)}\nfrom {math.ceil(remaining_duration / AUDIO_CHUNK_IN_SECONDS)}: ", end="")  #
             cur_duration = 0  #
 
             new_parts = []
@@ -375,15 +371,15 @@ class AlgAnd0(SpeedUpAlgorithm):
                 new_parts[-1].append(part[1])
             parts = new_parts
             new_parts = []
-            for part in parts:
+            for part in tqdm(parts, leave=False):
                 if part[1] - part[0] < self.minimal_lenght_of_inter_part_sec:
                     continue
-                new_parts.append(part[0] + alg.get_interesting_parts_from_wav(audio.subclip(*part), logger_func=do_nothing))
+                new_parts.append(part[0] + alg.get_interesting_parts_from_wav(audio.subclip(*part)))
 
                 cur_duration += part[1] - part[0]  #
-                if math.floor((cur_duration - (part[1] - part[0])) / AUDIO_CHUNK_IN_SECONDS) < math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS): #
-                    print(math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS), end=", ")  #
-            print()  #
+                # if math.floor((cur_duration - (part[1] - part[0])) / AUDIO_CHUNK_IN_SECONDS) < math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS): #
+                #     print(math.floor(cur_duration / AUDIO_CHUNK_IN_SECONDS), end=", ")  #
+            # print()  #
 
             parts = np.vstack(new_parts)
         return parts
@@ -407,7 +403,7 @@ class AlgAnd1(SpeedUpAlgorithm):
 
         list_of_ip = [0] * n
         for i, alg in enumerate(self.algs):
-            print(f"Calculating interesting parts using {alg}")
+            # print(f"Calculating interesting parts using {alg}")
             list_of_ip[i] = alg.get_interesting_parts(path)
 
         cur_alg_indexes = [0 for _ in range(n)]
@@ -455,7 +451,7 @@ class AlgOr(SpeedUpAlgorithm):
 
 
 class RemoveShortParts(SpeedUpAlgorithm):
-    def __init__(self, alg: SpeedUpAlgorithm, min_part_lenght: float=0.15):
+    def __init__(self, alg: SpeedUpAlgorithm, min_part_lenght: float = 0.15):
         super(RemoveShortParts, self).__init__()
         self.alg = alg
         self.min_part_lenght = min_part_lenght

@@ -1,6 +1,5 @@
-
-# Introdution
-Lets take a look at this two videos (a minute from each one).<br>
+# Introduction
+Let's take a look at this two videos (a minute from each one).<br>
 
 | [![Editing tutorial2](http://img.youtube.com/vi/AmTwR03VM_w/0.jpg)](https://www.youtube.com/embed/AmTwR03VM_w?start=40&amp;end=103 "Editing tutorial") <br> (click to play 1m3s subclip)<br> Popular video (>500k subs channel) | [![Editing tutorial2](http://img.youtube.com/vi/M2pQtX0NS8E/0.jpg)](https://www.youtube.com/embed/M2pQtX0NS8E?start=300&amp;end=363 "Editing tutorial") <br> (click to play 1m0s subclip)<br> Not that popular lecture |
 |:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
@@ -8,40 +7,53 @@ Lets take a look at this two videos (a minute from each one).<br>
 After watching these subclips, we can see that the left tutorial is more watchable than the right one.
 It is because the right lecture contains a lot of parts where the lector is thinking or typing, 
 while the left tutorial it is well edited and doesn't contain these moments.
-The example shows us the importance of cutting out not-speech parts for creating good-quality tutorial. (and getting)
-However, manual editing takes requires effort and takes some time (at least 1-3 duration of editing video), which is not very affordable for everyone.
+The example shows us the importance of cutting out not-speech parts for creating good-quality tutorial.
+However, manual editing takes a lot of effort and some time (at least 1-3 durations of editing video), which is not very affordable for everyone.
 That's why I code program, that automatically finds not-speech parts and cuts them out.<br>
-So the progam splits the video <br>
+So the program divides the video <br>
 [![Editing tutorial2](http://img.youtube.com/vi/M2pQtX0NS8E/0.jpg "Original video")](https://www.youtube.com/embed/M2pQtX0NS8E?start=300&amp;end=363 "Editing tutorial")
-<br> Into the two videos <br>
+<br> into the two videos <br>
 
-| [![Sound only](http://img.youtube.com/vi/9D36FOnVd84/0.jpg)](https://www.youtube.com/embed/9D36FOnVd84 "Sound only")<br>Result of programm: Speech only | [![Sound only](http://img.youtube.com/vi/WE_QvSqljGs/0.jpg)](https://www.youtube.com/embed/WE_QvSqljGs "Sound only") <br> Only not speech |   
-|---------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| [![Sound only](http://img.youtube.com/vi/9D36FOnVd84/0.jpg)](https://www.youtube.com/embed/9D36FOnVd84 "Sound only")<br>Result of program: Speech only | [![Sound only](http://img.youtube.com/vi/WE_QvSqljGs/0.jpg)](https://www.youtube.com/embed/WE_QvSqljGs "Sound only") <br> Only not speech |   
+|--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 
 <br> And we can see that the result of program is better than the original video.
 Of course the result of this program isn't ideal, like in editing tutorial, but it is much better, for no effort.
 
+# Does it work? & Numbers
+The two screenshots below are from two YouTube channels, each contains accelerated videolectures from Mathematics at HSE
+([link](https://www.youtube.com/channel/UCASlwNxf7mHBUEPr1s6fsDg/videos))
+(Every accelerated video has a description, that says "It is accelerated version of a video, which you can watch here - URL_of_original_video")
+
+| ![](https://i.postimg.cc/mrdH3QR7/2022-06-25-19-36-48.png) <br>Channel 1 | ![](https://i.postimg.cc/1tfNvf52/2022-06-25-19-38-57.png) <br>Channel 2 |
+|--------------------------------------------------------------------------|--------------------------------------------------------------------------|
+
+
+Overall, people for the past two years have watched accelerated lectures more than 13 566 + 16 800 > 30 000 total times (as alternative to watching not-edited lectures).
+So, we can conclude that this program really increases videolectures quality (and don't require a lot of time and effort). 
+Assumingly, the quality change for tutorials and vlogs is similar to quality increase for lectures, 
+because their editing have same idea "speech = keep in video", "no speech = skip".
+
 # How to use it?
-The easiest way is to use it - [on google.collab](https://colab.research.google.com/drive/1mM0Tz2pYrzbn1e4r0NzBUIneJVWeZZrA) <br>
+The easiest way is to use program - [on google.collab](https://colab.research.google.com/drive/1mM0Tz2pYrzbn1e4r0NzBUIneJVWeZZrA) <br>
 But you can use it locally
 1. Download the mkvmerge from the official website https://mkvtoolnix.download/.
 2. Make mkvmerge seen from the command line.
-3. Download or clone this code from Github and install all libraries.<br>
-
-In the folder `tests/process_using_algorithm.py` there is a working example.
-You can change some parameters (description below and int the collab example) if default ones results too weak or too strong acceleration. 
+3. Download or clone this code from GitHub.
+4. Install all libraries (with `pip3 install -r path/to/requirements.txt`)
+5. There is a working example in the `tests/process_using_algorithm.py`. You can change some parameters (description below and int the collab example) if default ones results too weak or too strong acceleration. 
 
 *Modules `webrtcvad`, `torch` and `torchaudio` are used only for their algorithms,
 so they if you don't use the appropriate algorithm, these modules are unnecessary.<br>
 
 # How to call it from a python script?<br>
 
-Also you can call the magic function from your python script.
+Also, you can call the magic function from your python script.
 The basic example would be
 ```
-"""
-Testing process_one_video_in_computer function
-"""
+import sys
+sys.path.append(path_to_sva_folder)
+import time
 
 from main import process_one_video_in_computer
 from settings import Settings
@@ -51,35 +63,35 @@ from speed_up import (
     WebRtcVADAlgorithm,
     SileroVadAlgorithm,
     AlgOr,
-    AlgAnd
+    AlgAnd, AlgAnd1, RemoveShortParts, AlgNot
 )
 
-input_video_path = input("write path of input video: ")
+input_video_path = input("Type the path of an input video: ")
 
-# speedup_algorithm = VolumeThresholdAlgorithm(0.02)  # or
-# speedup_algorithm = WebRtcVADAlgorithm(3) or
-# SileroVadAlgorithm(is_adaptive=True) or
-speedup_algorithm = AlgAnd(
-    VolumeThresholdAlgorithm(0.02, min_quiet_time=0.2),
-    WebRtcVADAlgorithm(2),
-    SileroVadAlgorithm(is_adaptive=True),
-)  # or any other option
+speedup_algorithm = AlgAnd(    # parts where volume >= 0.25 AND silero_probability > 0.4
+    VolumeThresholdAlgorithm(0.025),   # parts, where volume > 0.025 are skipped
+    SileroVadAlgorithm(0.4),           # parts, where algorithm from Silero return probability of speech,
+                                       # that greater than 0.4 are skipped
+)
 
 settings = Settings(quiet_speed=6)
 
-output_video_path = input("write path of output video: ")
+output_video_path = input("Type the path of an output video: ")
 
+t = time.time()
 process_one_video_in_computer(
     input_video_path,
     speedup_algorithm,
     settings,
     output_video_path,
     is_result_cfr=False,
-    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True)
+    ffmpeg_caller=FFMPEGCaller(overwrite_force=True, hide_output=True, print_command=False),
+    # audiocodec="pcm_s16le",
 )
+print(f"Total time: {round(time.time() - t, 3)} seconds")
 ```
 
-Lets break down what the code does.<br>
+Let's break down what the code does.<br>
 1. Firstly, we need to specify path to input video (and download it if needed).
    For example, we saved it in the
    `input_video_path = input("write path of input video: ")`
@@ -97,10 +109,10 @@ Lets break down what the code does.<br>
        This algorithm requires `webrtcvad` module installed.<br>
      * `speed_up.SileroVadAlgorithm(*vad_args, onnx=True, **vad_kwargs)` selects speech from text using VAD algorithm
        from this (https://github.com/snakers4/silero-vad) project and returns them as interesting parts.<br>
-       If `onnx=True` programm will use onnx model otherwise it uses pythorch model. For more info check https://github.com/snakers4/silero-vad.
+       If `onnx=True` program will use onnx model otherwise it uses pythorch model. For more info check https://github.com/snakers4/silero-vad.
         For example, `speedup_algorithm = SileroVadAlgorithm(trig_sum=0.25, neg_trig_sum=0.7)`<br>
        `SileroVadAlgorithm` requires installed `torch` and `torchaudio` modules.
-   * Complex algoritms (takes as arguments other algorithm and combines their result) 
+   * Complex algorithms (takes as arguments other algorithm and combines their result) 
      * `AlgNot(alg)` accepts `alg` as arguments and swap interesting and boring parts.
         For example, `AlgNot(SileroVadAlgorithm())`
      * `speed_up.AlgAnd(alg1, alg2, alg3, ... algn, fast=True)` accepts algorithms as arguments
@@ -127,12 +139,20 @@ Lets break down what the code does.<br>
           SileroVadAlgorithm(trig_sum=0.35, neg_trig_sum=0.5)),
        )
        ```
-     
+     * `speed_up.RemoveShortParts(alg, min_part_lenght=0.15)` - runs algorithm `alg` and removes all interesting part, that are shorter than
+        `min_part_lenght` seconds.
+        ```
+        speedup_algorithm = AlgOr(
+           VolumeThresholdAlgorithm(0.5),
+           WebRtcVADAlgorithm(1),
+           SileroVadAlgorithm(trig_sum=0.35, neg_trig_sum=0.5)),
+        )
+        ```
 3. Thirdly, we should set some params.
    The program uses the `settings.Settings` object to contain them. This class only contains all parameters that the program needs.
    Description of supported parameters here.<br>
      * `loud_speed` - speed of interesting parts of video/audio.
-     * `quiet_speed` - speed of borring parts of video/audio.
+     * `quiet_speed` - speed of boring parts of video/audio.
      * `global_speed` - multiplies loud_speed and quiet_speed.
      * `max_quiet_time` - in every boring video piece, the program skips part starting from `max_quiet_time` seconds.
    
@@ -153,7 +173,7 @@ that does the trick.<br>
       Main examples:
       
       * `''` - No filter.
-         Takes 0 additional time, recommended using if you're sure about your speed up algorithm.
+         Takes 0 additional time, recommended using if you're sure about your speed-up algorithm.
       * <i><b><u>[default]</u></b></i> `'-filter:a dynaudnorm'`.  Applies the dynaudnorm ffmpeg filter (normalizes volume in audio),
            which helps VolumeThresholdAlgorithm and SileroVadAlgorithm.
            Noise volume and very quiet speech increases not enough to hear.
@@ -189,8 +209,8 @@ that does the trick.<br>
            * If this parameter is `True` program prints all ffmpeg commands before executing them .
            * If this parameter is `False` it doesn't. 
    4. `is_result_cfr = False` if this option is True, `apply_calculated_interesting_to_video`
-    and `process_one_video_in_computer` returns CFR video, but they works much longer.
-   5. `audiocodec = "flac"` auiocodec of result video
+    and `process_one_video_in_computer` returns CFR video, but they work much longer.
+   5. `audiocodec = "flac"` audio codec of result video
       * `"pcm_s16le"` - the fastest, not compact, not played by default windows player
       * `"flac"` - **default**, not played by default windows player
       * `"mp3"` - very compact, played by default windows player

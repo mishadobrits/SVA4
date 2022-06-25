@@ -6,3 +6,5 @@ webrtcvad==2.0.10
 torch>=1.10.0
 torchaudio>=0.10.0
 onnxruntime>=1.10.0
+typing~=3.7.4.3
+tqdm~=4.64.0

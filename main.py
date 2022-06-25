@@ -1,9 +1,10 @@
 """
-This module provides the main functions of this project - 'process_one_video_from_computer' and .
+This module provides the main function of this project - 'process_one_video_from_computer'.
 It processes the video in the way README says.
 """
 import itertools
 import json
+import math
 import os
 import random
 import shutil
@@ -14,6 +15,7 @@ from tempfile import gettempdir
 import logging
 from wave import Wave_read, Wave_write
 import numpy as np
+from tqdm.auto import tqdm
 
 from audio import save_audio_to_wav, read_bytes_from_wave, AUDIO_CHUNK_IN_SECONDS
 from settings import Settings
@@ -22,7 +24,7 @@ from some_functions import (
     get_working_directory_path, VideoV2Timecodes,
 )
 from ffmpeg_caller import FFMPEGCaller
-from speed_up import SpeedUpAlgorithm, SpecifiedParts, AlgAnd
+from speed_up import SpeedUpAlgorithm
 from multiprocessing.pool import ThreadPool as Pool
 
 
@@ -81,7 +83,7 @@ def process_one_video_in_computer(
         ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
         ffmpeg_preprocess_audio: str = "-filter:a dynaudnorm",
         audiocodec: str = "flac",
-        videochunk_sec: float = 60 * 10,
+        videochunk_sec: float = 60 * 60,
 ):
     if not output_video_path.endswith(".mkv"):
         output_video_path += ".mkv"
@@ -106,8 +108,10 @@ def process_one_video_in_computer(
 
     duration = get_duration(input_video_path)
     out_pathes = []
-    for start in np.arange(0, duration, videochunk_sec):
-        end = min(start + videochunk_sec, duration)
+
+    n = math.ceil(duration / videochunk_sec)
+    chunks = [[duration * i / n, duration * (i + 1) / n] for i in range(n)]
+    for start, end in tqdm(chunks, desc="Processed"):
         name = f"{round(start, 2)}-{round(end, 2)}-{random.randint(0, 10**10)}"
         name = TEMPORARY_DIRECTORY_PREFIX + name
 
@@ -141,9 +145,10 @@ def process_one_video_in_computer(
         audioargs += ["-D", elem, "+"]
     videoargs.pop()
     audioargs.pop()
+    print("Merging result")
 
-    subprocess.call(videoargs)
-    subprocess.call(audioargs)
+    subprocess.call(videoargs, stdout=subprocess.DEVNULL)
+    subprocess.call(audioargs, stdout=subprocess.DEVNULL)
 
     if audiocodec != "pcm_s16le":
         ffmpeg_caller(f'-i "{wav_audio_path}" -acodec {audiocodec} "{acodec_audio_path}"')
@@ -151,6 +156,7 @@ def process_one_video_in_computer(
         shutil.move(wav_audio_path, acodec_audio_path)
 
     ffmpeg_caller(f'-i "{acodec_audio_path}" -i "{videotrack_path}" -c:a copy -c:v copy "{output_video_path}"')
+    print(f"The result in '{output_video_path}'")
     delete_all_sva4_temporary_objects()
 
 
@@ -197,7 +203,7 @@ def process_one_videochunk_in_computer(
     working_directory_path = get_working_directory_path(working_directory_path)
 
     def get_interesting_parts_function(return_dict: dict):
-        print("  Splitting audio into boring / interesting parts")
+        # print("  Splitting audio into boring / interesting parts")
         try:
             return_dict["ip"] = speedup_algorithm.get_interesting_parts(video_path3)
         except Exception as e:
@@ -205,7 +211,7 @@ def process_one_videochunk_in_computer(
             traceback.print_exc()
             raise e
 
-    input_wav = save_audio_to_wav(video_path3, ffmpeg_preprocess_audio)
+    input_wav = save_audio_to_wav(video_path3, ffmpeg_preprocess_audio, ffmpeg_caller)
     interesting_parts = {}
 
     pool = Pool()
@@ -215,7 +221,6 @@ def process_one_videochunk_in_computer(
     pool.join()
     interesting_parts = interesting_parts["ip"]
 
-    # np.save("interesting_parts.npy", interesting_parts)
     apply_calculated_interesting_to_video(
         interesting_parts,
         settings,
@@ -294,7 +299,7 @@ def apply_calculated_interesting_to_video(
     working_directory_path = get_working_directory_path(working_directory_path)
 
     if " " in os.path.abspath(input_video_path):
-        new_video_path = tpath(f"input_video.{os.path.splitext(input_video_path)}")
+        new_video_path = tpath(f"input_video.{os.path.splitext(input_video_path)[1]}")
         shutil.copyfile(input_video_path, new_video_path)
         input_video_path = new_video_path
 
@@ -343,13 +348,11 @@ def apply_calculated_interesting_to_video(
                     temp_audio.writeframes(read_bytes_from_wave(file, start, end))
 
         v1timecodes.append([end_frame, len(v2timecodes), 10 ** 7])
-        # print(cur_time, temp_audio.getnframes() / temp_audio.getframerate())
 
     tempory_video_path = tpath("tempory_video.mkv")
 
     v2timecodes_path, video_path2 = tpath("timecodes.v2"), tpath("v2video.mkv")
     v2timecodes.apply_v1_timecodes(v1timecodes)
-    # print(v2timecodes[-1] / 1000)
     v2timecodes.save(v2timecodes_path)
 
     global_tracks_info_str = subprocess.check_output(['mkvmerge', '-J', input_video_path])
@@ -357,8 +360,9 @@ def apply_calculated_interesting_to_video(
     for track_info in global_tracks_info_json["tracks"]:
         if track_info["type"] == "video":
             video_track_id = track_info["id"]
-    os.system(f"mkvmerge -o {tempory_video_path} --timestamps {video_track_id}:{v2timecodes_path} -A {input_video_path} {final_audio_path}")
-
+    subprocess.call([
+        "mkvmerge", "-o", tempory_video_path, "--timestamps", f"{video_track_id}:{v2timecodes_path}", "-A", input_video_path, final_audio_path
+    ], stdout=subprocess.DEVNULL)
     if is_result_cfr:
         logger.log(1, "CFR-ing video")
         temporary_vfr_video_path = tpath("tempory_vfr_video.mkv")
