@@ -13,15 +13,17 @@ Currently, there are
  'AlgNot'
 """
 import math
-import os, sys
+import os
 import tempfile
 import wave
 import numpy as np
 from typing import List
-if 'google.colab' in sys.modules:
-    tqdm = lambda x, *args, **kwargs: x
-else:
-    from tqdm.auto import tqdm
+from tqdm.auto import tqdm as tqdm_original
+def tqdm(x, *args, **kwargs):
+    if len(x) == 1:
+        return x
+    else:
+        return tqdm_original(x, *args, **kwargs)
 from audio import save_audio_to_wav, WavFile, AUDIO_CHUNK_IN_SECONDS, PartsOfAudio
 from ffmpeg_caller import FFMPEGCaller
 from some_functions import str2error_message, get_duration, TEMPORARY_DIRECTORY_PREFIX

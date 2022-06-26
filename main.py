@@ -378,7 +378,7 @@ def apply_calculated_interesting_to_video(
     # delete_all_sva4_temporary_objects(working_directory_path)
 
 
-def delete_all_sva4_temporary_objects(path=gettempdir()):
+def delete_all_sva4_temporary_objects(path=gettempdir(), print_output=False):
     """
     When process_one_video_in_computer or apply_calculated_interesting_to_video
     creates temporary directory or temporary file its name starts with
@@ -392,7 +392,8 @@ def delete_all_sva4_temporary_objects(path=gettempdir()):
     sva4_temp_dirs = [f for f in temp_dirs if f.name.startswith(TEMPORARY_DIRECTORY_PREFIX)]
     for temp_path in sva4_temp_dirs:
         full_path = os.path.join(gettempdir(), temp_path.path)
-        print(f"Deleting {full_path}")
+        if print_output:
+            print(f"Deleting {full_path}")
         try:
             if temp_path.is_dir():
                 shutil.rmtree(full_path)

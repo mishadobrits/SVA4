@@ -1,8 +1,6 @@
 import bisect
 import itertools
-import math
 import os
-import traceback
 from tempfile import gettempdir
 from wave import Wave_read
 import numpy as np
