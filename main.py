@@ -21,7 +21,7 @@ from audio import save_audio_to_wav, read_bytes_from_wave, AUDIO_CHUNK_IN_SECOND
 from settings import Settings
 from some_functions import (
     ffmpeg_atempo_filter, input_answer, TEMPORARY_DIRECTORY_PREFIX, create_valid_path, get_nframes, get_duration,
-    get_working_directory_path, VideoV2Timecodes,
+    get_working_directory_path, VideoV2Timecodes, get__temporarypath_func,
 )
 from ffmpeg_caller import FFMPEGCaller
 from speed_up import SpeedUpAlgorithm
@@ -83,7 +83,7 @@ def process_one_video_in_computer(
         ffmpeg_caller: FFMPEGCaller = FFMPEGCaller(),
         ffmpeg_preprocess_audio: str = "-filter:a dynaudnorm",
         audiocodec: str = "flac",
-        videochunk_sec: float = 60 * 60,
+        videochunk_sec: float = 30 * 60,
 ):
     if not output_video_path.endswith(".mkv"):
         output_video_path += ".mkv"
@@ -97,16 +97,15 @@ def process_one_video_in_computer(
         overwrite_output_force = answer.lower() == "y"
         ffmpeg_caller.set_overwrite_force(overwrite_output_force)
 
-    def tpath(filename):
-        return os.path.join(
-            working_directory_path, TEMPORARY_DIRECTORY_PREFIX + filename
-        )
-
     working_directory_path = get_working_directory_path(working_directory_path)
+    tpath = get__temporarypath_func(working_directory_path)
+
     videotrack_path = tpath("videotrack.mkv")
     wav_audio_path, acodec_audio_path = tpath("wav_audio.mkv"), tpath("acodec_audio.mkv")
 
     duration = get_duration(input_video_path)
+    processed_video_path = tpath("video_with_wav.mkv")
+    ffmpeg_caller(f'-i "{input_video_path}" -c copy -acodec pcm_s16le {processed_video_path}')
     out_pathes = []
 
     n = math.ceil(duration / videochunk_sec)
@@ -116,7 +115,9 @@ def process_one_video_in_computer(
         name = TEMPORARY_DIRECTORY_PREFIX + name
 
         in_filepath = os.path.join(working_directory_path, name + "-inpfile.mkv")
-        ffmpeg_caller(f'-i "{input_video_path}" -c copy -ss {start} -to {end} "{in_filepath}"')
+        def to_timestr(time):
+            return f"{int(time // (60 * 60))}:{int(time // 60 % 60)}:{round(time % 60, 3)}"
+        subprocess.call(["mkvmerge", "-o", in_filepath, processed_video_path, "--split", f"parts:{to_timestr(start)}-{to_timestr(end)}"], stdout=subprocess.DEVNULL)
 
         out_filepath = os.path.join(working_directory_path, name + "-outfile.mkv")
         out_pathes.append(out_filepath)
@@ -290,13 +291,8 @@ def apply_calculated_interesting_to_video(
         logger.log(1, "Quiting")
         return
 
-    def tpath(filename):
-        """
-        returns the absolute path for a file with name filename in folder working_directory_path
-        """
-        return os.path.join(working_directory_path, filename)
-
     working_directory_path = get_working_directory_path(working_directory_path)
+    tpath = get__temporarypath_func(working_directory_path)
 
     if " " in os.path.abspath(input_video_path):
         new_video_path = tpath(f"input_video.{os.path.splitext(input_video_path)[1]}")

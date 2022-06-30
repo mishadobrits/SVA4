@@ -31,10 +31,11 @@ class VideoV2Timecodes:
         with open(timecodes_v2_path) as f:
             f.readline()
             timecodes_v2 = np.array([float(line) for line in f])
+        os.remove(timecodes_v2_path)
 
         self.timecodes_v2 = timecodes_v2
         if self.timecodes_v2.size:
-            self.timecodes_v2[0] = 0
+            pass
         else:
             self.timecodes_v2 = np.array([0])
         self.diff_timecodes = timecodes_v2[1:] - timecodes_v2[:-1]
@@ -54,14 +55,21 @@ class VideoV2Timecodes:
             self.diff_timecodes[start_n: end_n] *= 1 / speed
         self.diff_timecodes = np.maximum(self.diff_timecodes, 10 ** -6)
         self.timecodes_v2 = np.hstack(([0], np.cumsum(self.diff_timecodes)))
-        # print(2, self.timecodes_v2[:10], self.diff_timecodes[:10])
-        # self.timecodes_v2 = np.cumsum(self.diff_timecodes)
+
+    def shift(self, value):
+        self.timecodes_v2 += value
 
     def save(self, filepath):
         with open(filepath, "w") as f:
             f.write("# timestamp format v2\n")
             f.write("\n".join(list(map(lambda x: "{:.8f}".format(x), self.timecodes_v2))))
 
+
+def get__temporarypath_func(working_directory: str):
+    def tpath(fname: str):
+        return os.path.join(working_directory, TEMPORARY_DIRECTORY_PREFIX + fname)
+
+    return tpath
 
 
 def pairwise(iterable):
